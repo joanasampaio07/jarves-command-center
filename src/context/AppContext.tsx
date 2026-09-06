@@ -14,6 +14,7 @@ import {
 } from '../types/entities';
 import { generateId } from '../lib/utils';
 import { sounds } from '../lib/sound';
+import { jarvisAI } from '../lib/aiEngine';
 
 interface AppContextType {
   user: User;
@@ -44,7 +45,7 @@ interface AppContextType {
   addProject: (project: Omit<Project, 'id' | 'created_at'>) => void;
   updateProject: (id: string, updates: Partial<Project>) => void;
   deleteProject: (id: string) => void;
-  sendChatMessage: (content: string) => void;
+  sendChatMessage: (content: string) => Promise<void>;
   clearChat: () => void;
   setIsVoiceListening: (listening: boolean) => void;
   setActiveQuickAction: (action: 'task' | 'transaction' | 'habit' | 'project' | null) => void;
@@ -75,76 +76,53 @@ const defaultUser: User = {
 const initialTasks: Task[] = [
   {
     id: 'tsk_1',
-    title: 'Revisar métricas semanais da operação',
-    description: 'Analisar conversões, faturamento e KPIs estratégicos da equipe.',
+    title: 'Apresentar proposta do JARVES para grande empresa',
+    description: 'Demonstrar comando de voz neural, integrações corporativas e automação.',
     status: 'pending',
-    priority: 'high',
+    priority: 'urgent',
     due_date: new Date().toISOString().split('T')[0],
     due_time: '16:00',
     category: 'Estratégia',
-    tags: ['Gestão', 'KPIs'],
+    tags: ['Vendas', 'B2B'],
     created_at: new Date().toISOString(),
   },
   {
     id: 'tsk_2',
-    title: 'Reunião de Alinhamento com time de IA',
-    description: 'Definir novos prompts e automações do WhatsApp.',
+    title: 'Reunião de Alinhamento Comercial',
+    description: 'Validar precificação e pacote de inteligência artificial.',
     status: 'in_progress',
-    priority: 'urgent',
+    priority: 'high',
     due_date: new Date().toISOString().split('T')[0],
     due_time: '14:30',
     category: 'Reuniões',
     tags: ['Jarves', 'Tech'],
     created_at: new Date().toISOString(),
   },
-  {
-    id: 'tsk_3',
-    title: 'Aprovar orçamento de infraestrutura cloud',
-    status: 'completed',
-    priority: 'medium',
-    due_date: new Date().toISOString().split('T')[0],
-    category: 'Finanças',
-    tags: ['Aprovações'],
-    created_at: new Date().toISOString(),
-    completed_at: new Date().toISOString(),
-  },
 ];
 
 const initialHabits: Habit[] = [
   {
     id: 'hbt_1',
-    title: 'Treino & Cardio Matinal',
-    description: '45 minutos de exercícios funcionais ou musculação.',
+    title: 'Treino & Alta Performance',
+    description: '45 minutos de exercícios.',
     frequency: 'daily',
     time_of_day: 'morning',
     category: 'Saúde',
     color: '#00f2fe',
-    current_streak: 12,
-    longest_streak: 28,
+    current_streak: 14,
+    longest_streak: 30,
     created_at: new Date().toISOString(),
   },
   {
     id: 'hbt_2',
-    title: 'Leitura de Alta Performance (20 páginas)',
+    title: 'Leitura Estratégica (20 páginas)',
     description: 'Livros de negócios, liderança ou tecnologia.',
     frequency: 'daily',
     time_of_day: 'evening',
     category: 'Mente',
     color: '#a855f7',
-    current_streak: 7,
+    current_streak: 8,
     longest_streak: 15,
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'hbt_3',
-    title: 'Hidratação (3L de água)',
-    description: 'Bater a meta diária de água mineral.',
-    frequency: 'daily',
-    time_of_day: 'anytime',
-    category: 'Saúde',
-    color: '#10b981',
-    current_streak: 21,
-    longest_streak: 45,
     created_at: new Date().toISOString(),
   },
 ];
@@ -158,31 +136,11 @@ const initialWallets: Wallet[] = [
 const initialTransactions: FinancialTransaction[] = [
   {
     id: 'tx_1',
-    description: 'Recebimento de Consultoria Estratégica',
-    amount: 15000.00,
+    description: 'Recebimento Contrato Enterprise',
+    amount: 25000.00,
     type: 'income',
     category: 'Serviços',
     date: new Date().toISOString().split('T')[0],
-    wallet_id: 'wal_1',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'tx_2',
-    description: 'Servidores Cloud & OpenAI API',
-    amount: 1250.00,
-    type: 'expense',
-    category: 'Tecnologia',
-    date: new Date().toISOString().split('T')[0],
-    wallet_id: 'wal_3',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'tx_3',
-    description: 'Investimento em CDB 110% CDI',
-    amount: 5000.00,
-    type: 'expense',
-    category: 'Investimentos',
-    date: new Date(Date.now() - 86400000).toISOString().split('T')[0],
     wallet_id: 'wal_1',
     created_at: new Date().toISOString(),
   },
@@ -191,28 +149,15 @@ const initialTransactions: FinancialTransaction[] = [
 const initialProjects: Project[] = [
   {
     id: 'prj_1',
-    title: 'Expansão Operacional 2026',
-    description: 'Automatização de processos com agentes de IA e WhatsApp.',
+    title: 'Vendas Enterprise B2B 2026',
+    description: 'Comercialização do Sistema JARVES para médias e grandes empresas.',
     status: 'in_progress',
     color: '#00f2fe',
     deadline: '2026-12-15',
     budget: 80000,
-    spent: 24500,
-    progress: 68,
-    category: 'Inovação',
-    created_at: new Date().toISOString(),
-  },
-  {
-    id: 'prj_2',
-    title: 'Lançamento do Portal de Inteligência',
-    description: 'Plataforma web para clientes premium.',
-    status: 'in_progress',
-    color: '#a855f7',
-    deadline: '2026-10-30',
-    budget: 45000,
-    spent: 31000,
-    progress: 85,
-    category: 'Produto',
+    spent: 12000,
+    progress: 75,
+    category: 'Comercial',
     created_at: new Date().toISOString(),
   },
 ];
@@ -221,7 +166,7 @@ const initialChatMessages: ChatMessage[] = [
   {
     id: 'msg_1',
     role: 'assistant',
-    content: 'Olá Comandante! JARVES online e com todos os sistemas operacionais calibrados. Como posso otimizar o seu dia hoje?',
+    content: 'Olá Comandante! JARVES online e com todos os sistemas operacionais calibrados. O que gostaria de executar ou planejar agora?',
     timestamp: new Date().toISOString(),
     actions_suggested: [
       { label: '📊 Resumo do Dia', action: 'summary' },
@@ -254,7 +199,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     const saved = localStorage.getItem('jarves_habit_logs');
     return saved ? JSON.parse(saved) : [
       { id: 'hl_1', habit_id: 'hbt_1', date: today, completed: true, completed_at: new Date().toISOString() },
-      { id: 'hl_2', habit_id: 'hbt_3', date: today, completed: true, completed_at: new Date().toISOString() },
     ];
   });
 
@@ -286,8 +230,7 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
   const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => {
     const saved = localStorage.getItem('jarves_activity_logs');
     return saved ? JSON.parse(saved) : [
-      { id: 'act_1', action: 'SISTEMA_INICIADO', entity_type: 'system', description: 'JARVES Command Center inicializado com sucesso.', timestamp: new Date().toISOString() },
-      { id: 'act_2', action: 'HABITO_CONCLUIDO', entity_type: 'habit', description: 'Hábito "Treino & Cardio Matinal" registrado.', timestamp: new Date().toISOString() },
+      { id: 'act_1', action: 'SISTEMA_INICIADO', entity_type: 'system', description: 'JARVES Command Center inicializado.', timestamp: new Date().toISOString() },
     ];
   });
 
@@ -429,7 +372,6 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
     setTransactions(prev => [newTx, ...prev]);
 
-    // Update wallet balance
     setWallets(prev => prev.map(w => {
       if (w.id === txData.wallet_id) {
         const delta = txData.type === 'income' ? txData.amount : -txData.amount;
@@ -493,7 +435,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sounds.playClick();
   };
 
-  const sendChatMessage = (content: string) => {
+  // Dynamic Contextual AI Chat Message Sender
+  const sendChatMessage = async (content: string) => {
     if (!content.trim()) return;
 
     sounds.playClick();
@@ -506,37 +449,58 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
 
     setChatMessages(prev => [...prev, userMsg]);
 
-    // Simulated Intelligent Assistant Response
-    setTimeout(() => {
-      sounds.playJarvisActivate();
-      let reply = '';
-      const lower = content.toLowerCase();
+    const context = {
+      userName: user.name,
+      userAlias: user.alias || 'Comandante',
+      tasks,
+      habits,
+      wallets,
+      recentTransactions: transactions.slice(0, 5),
+      personality: user.preferences.personality || 'jarvis'
+    };
 
-      if (lower.includes('tarefa') || lower.includes('fazer') || lower.includes('pendent')) {
-        const pending = tasks.filter(t => t.status !== 'completed');
-        reply = `Você possui **${pending.length} tarefas pendentes** no momento.\n\n` +
-          pending.map(t => `- **${t.title}** (${t.priority.toUpperCase()}) ${t.due_time ? 'às ' + t.due_time : ''}`).join('\n') +
-          `\n\nDeseja que eu crie um novo lembrete ou reorganize suas prioridades?`;
-      } else if (lower.includes('finan') || lower.includes('saldo') || lower.includes('dinheiro') || lower.includes('gasto')) {
-        const total = wallets.reduce((acc, w) => acc + w.balance, 0);
-        reply = `Seu saldo consolidado em todas as contas é de **R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}**.\n\n` +
-          `Neste mês registramos **R$ ${transactions.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}** em receitas e **R$ ${transactions.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}** em despesas.`;
-      } else if (lower.includes('hábito') || lower.includes('habito') || lower.includes('treino')) {
-        reply = `Seus hábitos diários estão com ótimo desempenho! Seu maior streak atual é no hábito **${habits[0]?.title || 'Treino'}** com **${habits[0]?.current_streak || 12} dias seguidos**. Continue com foco total!`;
-      } else if (lower.includes('bom dia') || lower.includes('ola') || lower.includes('olá')) {
-        reply = `Bom dia, Comandante! Os sistemas estão 100% operacionais. Clima favorável, ${tasks.filter(t => t.status !== 'completed').length} tarefas na fila para hoje e nenhuma anomalia financeira detectada. Por onde gostaria de começar?`;
-      } else {
-        reply = `Entendido! Processei sua solicitação: "*${content}*".\n\nTodos os registros pertinentes foram sincronizados no banco de dados e notificados via central inteligente do JARVES. Posso te ajudar com mais alguma coisa?`;
-      }
+    // Call dynamic LLM reasoning
+    const aiResult = await jarvisAI.processMessage(
+      content,
+      chatMessages.map(m => ({ role: m.role, content: m.content })),
+      context
+    );
 
-      const assistantMsg: ChatMessage = {
-        id: generateId(),
-        role: 'assistant',
-        content: reply,
-        timestamp: new Date().toISOString(),
-      };
-      setChatMessages(prev => [...prev, assistantMsg]);
-    }, 600);
+    // Auto action handling
+    if (aiResult.actionDetected?.type === 'add_transaction' && aiResult.actionDetected.data) {
+      addTransaction({
+        description: aiResult.actionDetected.data.description || content,
+        amount: aiResult.actionDetected.data.amount || 50,
+        type: 'expense',
+        category: 'Geral',
+        date: new Date().toISOString().split('T')[0],
+        wallet_id: wallets[0]?.id || 'wal_1'
+      });
+    } else if (aiResult.actionDetected?.type === 'create_task' && aiResult.actionDetected.data) {
+      addTask({
+        title: aiResult.actionDetected.data.title || content,
+        status: 'pending',
+        priority: aiResult.actionDetected.data.priority || 'high',
+        due_date: new Date().toISOString().split('T')[0],
+        category: 'Geral'
+      });
+    } else if (aiResult.actionDetected?.type === 'check_habit') {
+      if (habits.length > 0) toggleHabitForToday(habits[0].id);
+    }
+
+    sounds.playJarvisActivate();
+    const assistantMsg: ChatMessage = {
+      id: generateId(),
+      role: 'assistant',
+      content: aiResult.reply,
+      timestamp: new Date().toISOString(),
+      actions_suggested: [
+        { label: '📊 Resumo do Dia', action: 'summary' },
+        { label: '✅ Tarefas Pendentes', action: 'tasks' },
+        { label: '💰 Balanço Financeiro', action: 'finances' }
+      ]
+    };
+    setChatMessages(prev => [...prev, assistantMsg]);
   };
 
   const clearChat = () => {

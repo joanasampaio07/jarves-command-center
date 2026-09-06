@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Spline from '@splinetool/react-spline';
-import { Mic, MicOff, Volume2, Sparkles, AlertCircle, Check, Loader2, Settings2, Key, Play, RefreshCw, VolumeX } from 'lucide-react';
+import { Mic, MicOff, Volume2, Sparkles, AlertCircle, Check, Loader2, Settings2, Key, Play, RefreshCw, VolumeX, Bot, Brain } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { sounds } from '../lib/sound';
+import { jarvisAI } from '../lib/aiEngine';
 
 export const VoiceChat: React.FC = () => {
-  const { user, addTask, addTransaction, toggleHabitForToday, sendChatMessage } = useApp();
+  const { user, tasks, habits, wallets, transactions, addTask, addTransaction, toggleHabitForToday } = useApp();
   const [voiceEngine, setVoiceEngine] = useState<'elevenlabs' | 'natural'>('elevenlabs');
   const [voiceGender, setVoiceGender] = useState<'male' | 'female'>('male');
   const [continuousMode, setContinuousMode] = useState(false);
@@ -17,8 +18,14 @@ export const VoiceChat: React.FC = () => {
   const [transcript, setTranscript] = useState('');
   const [lastReply, setLastReply] = useState('');
   const [splineLoaded, setSplineLoaded] = useState(false);
-  const [showVoiceSettings, setShowVoiceSettings] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('jarves_tts_api_key') || 'sk_0db4bf3a189c2745b186a2464108519137e709c5e045a1f9');
+  const [showSettings, setShowSettings] = useState(false);
+  
+  // API Keys
+  const [elevenApiKey, setElevenApiKey] = useState(() => localStorage.getItem('jarves_tts_api_key') || 'sk_0db4bf3a189c2745b186a2464108519137e709c5e045a1f9');
+  const [openaiKey, setOpenaiKey] = useState(() => localStorage.getItem('jarves_openai_key') || '');
+  const [groqKey, setGroqKey] = useState(() => localStorage.getItem('jarves_groq_key') || '');
+  
+  const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const recognitionRef = useRef<any>(null);
   const splineRef = useRef<any>(null);
   const isListeningRef = useRef(false);
@@ -55,7 +62,7 @@ export const VoiceChat: React.FC = () => {
         };
 
         recognition.onerror = (event: any) => {
-          console.warn('Speech recognition status:', event.error);
+          console.warn('Speech recognition warning:', event.error);
           if (isListeningRef.current) {
             setIsListening(false);
             isListeningRef.current = false;
@@ -74,7 +81,7 @@ export const VoiceChat: React.FC = () => {
 
         recognitionRef.current = recognition;
       } catch (err) {
-        console.error('Failed to initialize SpeechRecognition', err);
+        console.error('Speech recognition setup error', err);
       }
     }
   }, [continuousMode]);
@@ -111,10 +118,10 @@ export const VoiceChat: React.FC = () => {
     sounds.playJarvisActivate();
 
     const samplePrompts = [
-      'Jarves, o que tenho pra hoje?',
-      'Jarves, adicionar despesa de 65 reais para almoço',
-      'Jarves, agendar reunião com cliente amanhã às 15 horas',
-      'Jarves, marcar hábito de treino de hoje'
+      'Jarves, como podemos estruturar a apresentação para a empresa cliente?',
+      'Jarves, qual é o status das minhas tarefas mais urgentes hoje?',
+      'Jarves, adicionar despesa de 120 reais na conta principal',
+      'Jarves, marque meu hábito de leitura como concluído'
     ];
 
     setTimeout(() => {
@@ -126,51 +133,63 @@ export const VoiceChat: React.FC = () => {
     }, 1800);
   };
 
-  const handleProcessVoiceCommand = (command: string) => {
+  // Dynamic Contextual AI Processing with LLM
+  const handleProcessVoiceCommand = async (command: string) => {
     setIsProcessing(true);
-    setStatusText('PROCESSANDO...');
-    setSubText('INTELIGÊNCIA ARTIFICIAL ANALISANDO');
+    setStatusText('PENSANDO...');
+    setSubText('JARVES ANALISANDO VIA IA NEURAL');
 
-    setTimeout(() => {
-      setIsProcessing(false);
-      setIsSpeaking(true);
-      setStatusText('JARVES FALANDO');
-      setSubText('RESPOSTA DE VOZ ELEVENLABS');
+    const context = {
+      userName: user.name,
+      userAlias: user.alias || 'Comandante',
+      tasks,
+      habits,
+      wallets,
+      recentTransactions: transactions.slice(0, 5),
+      personality: user.preferences.personality || 'jarvis'
+    };
 
-      let replyText = '';
-      const lower = command.toLowerCase();
+    const aiResult = await jarvisAI.processMessage(
+      command,
+      chatHistory,
+      context
+    );
 
-      if (lower.includes('despesa') || lower.includes('gasto') || lower.includes('reais')) {
-        addTransaction({
-          description: 'Despesa registrada por voz (Jarves)',
-          amount: 65.00,
-          type: 'expense',
-          category: 'Alimentação',
-          date: new Date().toISOString().split('T')[0],
-          wallet_id: 'wal_1',
-        });
-        replyText = 'Comandante, registrei a despesa de sessenta e cinco reais na sua conta Nubank com sucesso.';
-      } else if (lower.includes('reunião') || lower.includes('agendar') || lower.includes('tarefa')) {
-        addTask({
-          title: 'Reunião com cliente (Agendado por Voz)',
-          description: 'Criado automaticamente via comando de voz do JARVES.',
-          status: 'pending',
-          priority: 'high',
-          due_date: new Date().toISOString().split('T')[0],
-          due_time: '15:00',
-          category: 'Reuniões',
-        });
-        replyText = 'Perfeito Comandante. Criei o compromisso na sua fila de tarefas para amanhã às quinze horas e sincronizei com a sua agenda.';
-      } else if (lower.includes('treino') || lower.includes('hábito')) {
-        toggleHabitForToday('hbt_1');
-        replyText = 'Hábito de treino registrado para o dia de hoje. Sua sequência diária de disciplina foi mantida.';
-      } else {
-        replyText = 'Sistemas operacionais calibrados e online, Comandante. O que mais posso executar para você?';
-      }
+    // Apply auto-detected actions if any
+    if (aiResult.actionDetected?.type === 'add_transaction' && aiResult.actionDetected.data) {
+      addTransaction({
+        description: aiResult.actionDetected.data.description || 'Gasto registrado por voz',
+        amount: aiResult.actionDetected.data.amount || 50,
+        type: 'expense',
+        category: 'Geral',
+        date: new Date().toISOString().split('T')[0],
+        wallet_id: wallets[0]?.id || 'wal_1'
+      });
+    } else if (aiResult.actionDetected?.type === 'create_task' && aiResult.actionDetected.data) {
+      addTask({
+        title: aiResult.actionDetected.data.title || command,
+        status: 'pending',
+        priority: aiResult.actionDetected.data.priority || 'high',
+        due_date: new Date().toISOString().split('T')[0],
+        category: 'Voz'
+      });
+    } else if (aiResult.actionDetected?.type === 'check_habit') {
+      if (habits.length > 0) toggleHabitForToday(habits[0].id);
+    }
 
-      setLastReply(replyText);
-      speakRealisticElevenLabs(replyText);
-    }, 800);
+    setChatHistory(prev => [
+      ...prev,
+      { role: 'user', content: command },
+      { role: 'assistant', content: aiResult.reply }
+    ]);
+
+    setIsProcessing(false);
+    setIsSpeaking(true);
+    setStatusText('JARVES FALANDO');
+    setSubText('RESPOSTA DE VOZ ELEVENLABS');
+    setLastReply(aiResult.reply);
+
+    speakRealisticElevenLabs(aiResult.reply);
   };
 
   // High-fidelity speech synthesizer using ElevenLabs
@@ -179,9 +198,9 @@ export const VoiceChat: React.FC = () => {
       currentAudioRef.current.pause();
     }
 
-    if (voiceEngine === 'elevenlabs' && apiKey) {
+    if (voiceEngine === 'elevenlabs' && elevenApiKey) {
       try {
-        // onwK4e9ZLuTAKqWW03F9 (Daniel - JARVIS British deep voice) / 21m00Tcm4TlvDq8ikWAM (Rachel - Friday)
+        const cleanKey = elevenApiKey.trim().replace(/^sk_/, '');
         const voiceId = voiceGender === 'male' ? 'onwK4e9ZLuTAKqWW03F9' : '21m00Tcm4TlvDq8ikWAM';
         
         const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -189,7 +208,7 @@ export const VoiceChat: React.FC = () => {
           headers: {
             'Accept': 'audio/mpeg',
             'Content-Type': 'application/json',
-            'xi-api-key': apiKey.trim(),
+            'xi-api-key': cleanKey,
           },
           body: JSON.stringify({
             text,
@@ -221,11 +240,10 @@ export const VoiceChat: React.FC = () => {
           await audio.play();
           return;
         } else {
-          console.warn('ElevenLabs returned non-200, falling back to Native Natural Voice');
           speakNativeTTS(text);
         }
       } catch (err) {
-        console.warn('ElevenLabs API fetch error, falling back to Native Natural Voice', err);
+        console.warn('ElevenLabs API fetch error, using Native Voice', err);
         speakNativeTTS(text);
       }
     } else {
@@ -292,10 +310,12 @@ export const VoiceChat: React.FC = () => {
     speakRealisticElevenLabs(testMsg);
   };
 
-  const handleSaveApiKey = (e: React.FormEvent) => {
+  const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
-    localStorage.setItem('jarves_tts_api_key', apiKey);
-    setShowVoiceSettings(false);
+    localStorage.setItem('jarves_tts_api_key', elevenApiKey);
+    jarvisAI.setOpenAIKey(openaiKey);
+    jarvisAI.setGroqKey(groqKey);
+    setShowSettings(false);
     sounds.playSuccess();
     handleTestVoice();
   };
@@ -372,17 +392,17 @@ export const VoiceChat: React.FC = () => {
             title="Clique para ouvir o JARVES falar agora com a ElevenLabs"
           >
             <Volume2 className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span>TESTAR VOZ ELEVENLABS</span>
+            <span>TESTAR VOZ</span>
           </button>
 
-          {/* MOTOR DE VOZ ELEVENLABS SETTINGS */}
+          {/* IA & ELEVENLABS SETTINGS */}
           <button
-            onClick={() => setShowVoiceSettings(!showVoiceSettings)}
+            onClick={() => setShowSettings(!showSettings)}
             className="px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider flex items-center gap-1.5 bg-purple-950/60 text-purple-300 border border-purple-500/40 hover:bg-purple-900/60 transition-all"
-            title="Configurar Chave ElevenLabs / IA"
+            title="Configurar Cérebro IA (OpenAI/Groq) e ElevenLabs"
           >
-            <Settings2 className="w-3.5 h-3.5 text-purple-400" />
-            <span>ELEVENLABS: CONECTADO</span>
+            <Brain className="w-3.5 h-3.5 text-purple-400" />
+            <span>CÉREBRO IA & VOZ</span>
           </button>
 
         </div>
@@ -390,54 +410,76 @@ export const VoiceChat: React.FC = () => {
         {/* Live Status Badge */}
         <div className="flex items-center gap-2 px-3 py-1 rounded-full bg-cyan-950/40 border border-cyan-500/20 text-xs text-cyan-300 font-mono">
           <span className={`w-2 h-2 rounded-full ${isSpeaking ? 'bg-purple-400 animate-ping' : isListening ? 'bg-red-400 animate-ping' : 'bg-emerald-400'}`} />
-          <span>{isSpeaking ? 'JARVES FALANDO...' : isListening ? 'ESCUTANDO...' : 'JARVES 3D ONLINE'}</span>
+          <span>{isSpeaking ? 'JARVES FALANDO...' : isListening ? 'ESCUTANDO...' : isProcessing ? 'PENSANDO...' : 'JARVES 3D ONLINE'}</span>
         </div>
       </div>
 
-      {/* MODAL CONFIGURAÇÃO ELEVENLABS */}
-      {showVoiceSettings && (
-        <div className="absolute top-20 left-6 z-40 p-5 rounded-2xl bg-[#030a1c]/95 border border-purple-500/40 shadow-2xl backdrop-blur-xl w-80 sm:w-96 animate-in fade-in duration-200">
-          <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
-            <h4 className="text-sm font-bold font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-purple-400" />
-              <span>Chave ElevenLabs // Voz Cinema</span>
+      {/* MODAL CONFIGURAÇÃO CÉREBRO IA E ELEVENLABS */}
+      {showSettings && (
+        <div className="absolute top-20 left-6 z-40 p-6 rounded-3xl bg-[#030a1c]/95 border border-cyan-500/40 shadow-2xl backdrop-blur-xl w-80 sm:w-[420px] animate-in fade-in duration-200">
+          <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
+            <h4 className="text-base font-bold font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
+              <Brain className="w-5 h-5 text-cyan-400" />
+              <span>Configurar IA Dinâmica & Voz</span>
             </h4>
             <button
-              onClick={() => setShowVoiceSettings(false)}
+              onClick={() => setShowSettings(false)}
               className="text-slate-400 hover:text-white text-xs"
             >
               ✕
             </button>
           </div>
 
-          <form onSubmit={handleSaveApiKey} className="space-y-3 text-xs">
+          <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
+            {/* OpenAI Key */}
             <div>
-              <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">ElevenLabs API Key</label>
+              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
+                <span>OpenAI API Key (GPT-4o)</span>
+                <span className="text-cyan-400">Recomendado</span>
+              </label>
               <input
                 type="password"
-                value={apiKey}
-                onChange={e => setApiKey(e.target.value)}
-                placeholder="Insira sua API Key da ElevenLabs..."
-                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-purple-500/40 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
+                value={openaiKey}
+                onChange={e => setOpenaiKey(e.target.value)}
+                placeholder="sk-proj-..."
+                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-cyan-500/30 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
+              />
+              <p className="text-[10px] text-slate-400 mt-0.5">Permite conversar sobre qualquer assunto sem respostas repetitivas.</p>
+            </div>
+
+            {/* Groq Key */}
+            <div>
+              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
+                <span>Groq API Key (Llama 3.3 70B)</span>
+                <span className="text-emerald-400">Grátis & Rápido</span>
+              </label>
+              <input
+                type="password"
+                value={groqKey}
+                onChange={e => setGroqKey(e.target.value)}
+                placeholder="gsk_..."
+                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-emerald-500/30 text-white font-mono text-xs focus:outline-none focus:border-emerald-400"
               />
             </div>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setVoiceEngine(voiceEngine === 'elevenlabs' ? 'natural' : 'elevenlabs')}
-                className={`flex-1 py-2 rounded-xl font-bold font-rajdhani text-xs uppercase tracking-wider transition-all ${
-                  voiceEngine === 'elevenlabs' ? 'bg-purple-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
-                }`}
-              >
-                {voiceEngine === 'elevenlabs' ? 'ElevenLabs: Ativado' : 'Usar Voz Nativa'}
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold font-rajdhani text-xs uppercase"
-              >
-                Salvar & Testar
-              </button>
+
+            {/* ElevenLabs Key */}
+            <div>
+              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1">ElevenLabs API Key (Voz de Cinema)</label>
+              <input
+                type="password"
+                value={elevenApiKey}
+                onChange={e => setElevenApiKey(e.target.value)}
+                placeholder="sk_..."
+                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-purple-500/30 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
+              />
             </div>
+
+            <button
+              type="submit"
+              className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold font-rajdhani tracking-wider uppercase text-xs transition-all shadow-[0_0_20px_rgba(0,242,254,0.4)]"
+            >
+              Salvar Configurações e Testar
+            </button>
           </form>
         </div>
       )}
@@ -465,13 +507,13 @@ export const VoiceChat: React.FC = () => {
         
         {/* Live Transcript / Speech Bubble */}
         {(transcript || lastReply) && (
-          <div className="max-w-lg px-5 py-3 rounded-2xl bg-black/85 backdrop-blur-md border border-cyan-500/30 text-center animate-in fade-in duration-200 shadow-2xl space-y-1">
+          <div className="max-w-xl px-5 py-3.5 rounded-2xl bg-black/85 backdrop-blur-md border border-cyan-500/30 text-center animate-in fade-in duration-200 shadow-2xl space-y-1.5">
             {transcript && (
               <p className="text-xs text-cyan-200 font-medium italic">"{transcript}"</p>
             )}
             {lastReply && (
-              <p className="text-xs text-emerald-300 font-bold font-rajdhani pt-1 border-t border-white/5">
-                JARVES: {lastReply}
+              <p className="text-xs sm:text-sm text-emerald-300 font-semibold font-sans pt-1 border-t border-white/5 leading-relaxed">
+                🤖 <strong>JARVES:</strong> {lastReply}
               </p>
             )}
           </div>

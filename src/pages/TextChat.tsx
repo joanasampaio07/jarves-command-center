@@ -1,11 +1,14 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Send, Sparkles, Trash2, Bot, User as UserIcon, Mic, CornerDownLeft } from 'lucide-react';
+import { Send, Sparkles, Trash2, Bot, User as UserIcon, Mic, Brain, Key } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { sounds } from '../lib/sound';
+import { jarvisAI } from '../lib/aiEngine';
 
 export const TextChat: React.FC = () => {
-  const { user, chatMessages, sendChatMessage, clearChat, setIsVoiceListening } = useApp();
+  const { user, tasks, habits, wallets, transactions, chatMessages, clearChat, setIsVoiceListening, addTask, addTransaction, toggleHabitForToday } = useApp();
   const [input, setInput] = useState('');
+  const [messages, setMessages] = useState(chatMessages);
+  const [isTyping, setIsTyping] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const scrollToBottom = () => {
@@ -14,20 +17,85 @@ export const TextChat: React.FC = () => {
 
   useEffect(() => {
     scrollToBottom();
-  }, [chatMessages]);
+  }, [messages, isTyping]);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    sendChatMessage(input);
+
+    const userMsg = input.trim();
     setInput('');
+    sounds.playClick();
+
+    const newHistory = [
+      ...messages,
+      { id: Date.now().toString(), role: 'user' as const, content: userMsg, timestamp: new Date().toISOString() }
+    ];
+    setMessages(newHistory);
+    setIsTyping(true);
+
+    const context = {
+      userName: user.name,
+      userAlias: user.alias || 'Comandante',
+      tasks,
+      habits,
+      wallets,
+      recentTransactions: transactions.slice(0, 5),
+      personality: user.preferences.personality || 'jarvis'
+    };
+
+    const aiResult = await jarvisAI.processMessage(
+      userMsg,
+      newHistory.map(m => ({ role: m.role, content: m.content })),
+      context
+    );
+
+    // Apply auto-detected actions
+    if (aiResult.actionDetected?.type === 'add_transaction' && aiResult.actionDetected.data) {
+      addTransaction({
+        description: aiResult.actionDetected.data.description || userMsg,
+        amount: aiResult.actionDetected.data.amount || 50,
+        type: 'expense',
+        category: 'Geral',
+        date: new Date().toISOString().split('T')[0],
+        wallet_id: wallets[0]?.id || 'wal_1'
+      });
+    } else if (aiResult.actionDetected?.type === 'create_task' && aiResult.actionDetected.data) {
+      addTask({
+        title: aiResult.actionDetected.data.title || userMsg,
+        status: 'pending',
+        priority: 'high',
+        due_date: new Date().toISOString().split('T')[0],
+        category: 'Geral'
+      });
+    } else if (aiResult.actionDetected?.type === 'check_habit') {
+      if (habits.length > 0) toggleHabitForToday(habits[0].id);
+    }
+
+    setIsTyping(false);
+    sounds.playJarvisActivate();
+
+    setMessages(prev => [
+      ...prev,
+      {
+        id: (Date.now() + 1).toString(),
+        role: 'assistant' as const,
+        content: aiResult.reply,
+        timestamp: new Date().toISOString(),
+        actions_suggested: [
+          { label: '📊 Resumo do Dia', action: 'summary' },
+          { label: '✅ Tarefas Pendentes', action: 'tasks' },
+          { label: '💰 Balanço Financeiro', action: 'finances' }
+        ]
+      }
+    ]);
   };
 
   const quickPrompts = [
     'Jarves, o que tenho pra hoje?',
-    'Jarves, marcar dentista na terça às 14h',
-    'Jarves, quanto já gastei este mês?',
-    'Jarves, crie um plano para aumentar meu foco hoje',
+    'Jarves, marque o treino de hoje como concluído',
+    'Jarves, como podemos fechar uma proposta comercial para uma grande empresa?',
+    'Jarves, quanto já gastamos este mês nas contas?',
   ];
 
   return (
@@ -45,9 +113,9 @@ export const TextChat: React.FC = () => {
           <div>
             <h2 className="font-rajdhani text-xl font-bold text-white tracking-wider flex items-center gap-2">
               <span>JARVES AI CORE</span>
-              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">NEURAL v4.2</span>
+              <span className="text-[10px] px-2 py-0.5 rounded-full bg-cyan-500/20 text-cyan-300 font-mono">LLM NEURAL</span>
             </h2>
-            <p className="text-xs text-slate-400">Assistente pessoal contextual & inteligência operacional</p>
+            <p className="text-xs text-slate-400">Inteligência contextual com conhecimento em tempo real</p>
           </div>
         </div>
 
@@ -63,7 +131,10 @@ export const TextChat: React.FC = () => {
             <Mic className="w-4 h-4" />
           </button>
           <button
-            onClick={clearChat}
+            onClick={() => {
+              clearChat();
+              setMessages([]);
+            }}
             className="p-2 rounded-xl text-slate-400 hover:text-red-400 hover:bg-white/5 transition-colors"
             title="Limpar histórico"
           >
@@ -74,21 +145,19 @@ export const TextChat: React.FC = () => {
 
       {/* Messages List */}
       <div className="flex-1 overflow-y-auto p-6 space-y-4">
-        {chatMessages.map((msg) => {
+        {messages.map((msg) => {
           const isUser = msg.role === 'user';
           return (
             <div
               key={msg.id}
               className={`flex items-start gap-3 ${isUser ? 'flex-row-reverse' : 'flex-row'}`}
             >
-              {/* Avatar */}
               <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 ${
                 isUser ? 'bg-cyan-600 text-white' : 'bg-[#0b152d] border border-cyan-500/40 text-cyan-400'
               }`}>
                 {isUser ? <UserIcon className="w-4 h-4" /> : <Bot className="w-4 h-4" />}
               </div>
 
-              {/* Message Bubble */}
               <div className={`max-w-xl p-4 rounded-2xl text-sm leading-relaxed ${
                 isUser 
                   ? 'bg-cyan-600/90 text-white rounded-tr-none shadow-[0_0_15px_rgba(0,242,254,0.2)]'
@@ -96,13 +165,14 @@ export const TextChat: React.FC = () => {
               }`}>
                 <div className="whitespace-pre-wrap font-sans text-sm">{msg.content}</div>
 
-                {/* Suggested actions if any */}
                 {msg.actions_suggested && msg.actions_suggested.length > 0 && (
                   <div className="mt-3 pt-3 border-t border-white/10 flex flex-wrap gap-2">
                     {msg.actions_suggested.map((act, idx) => (
                       <button
                         key={idx}
-                        onClick={() => sendChatMessage(act.label)}
+                        onClick={() => {
+                          setInput(act.label);
+                        }}
                         className="px-2.5 py-1 rounded-lg bg-cyan-500/10 hover:bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 text-xs font-medium transition-colors"
                       >
                         {act.label}
@@ -118,6 +188,19 @@ export const TextChat: React.FC = () => {
             </div>
           );
         })}
+
+        {isTyping && (
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-xl bg-[#0b152d] border border-cyan-500/40 text-cyan-400 flex items-center justify-center">
+              <Bot className="w-4 h-4" />
+            </div>
+            <div className="p-3.5 rounded-2xl bg-[#060e22] border border-cyan-500/20 text-xs text-cyan-300 flex items-center gap-2">
+              <span className="w-2 h-2 rounded-full bg-cyan-400 animate-ping" />
+              <span>JARVES processando resposta...</span>
+            </div>
+          </div>
+        )}
+
         <div ref={messagesEndRef} />
       </div>
 
@@ -127,7 +210,7 @@ export const TextChat: React.FC = () => {
         {quickPrompts.map((p, i) => (
           <button
             key={i}
-            onClick={() => sendChatMessage(p)}
+            onClick={() => setInput(p)}
             className="px-2.5 py-1 rounded-full bg-white/5 hover:bg-cyan-500/20 text-slate-400 hover:text-cyan-300 border border-white/5 hover:border-cyan-500/30 text-xs shrink-0 transition-all"
           >
             {p}
@@ -141,7 +224,7 @@ export const TextChat: React.FC = () => {
           type="text"
           value={input}
           onChange={e => setInput(e.target.value)}
-          placeholder="Envie uma mensagem ou comando para o JARVES..."
+          placeholder="Converse sobre qualquer assunto ou dê ordens ao JARVES..."
           className="flex-1 px-4 py-3 rounded-2xl bg-black/60 border border-cyan-500/30 text-white placeholder-slate-500 text-sm focus:outline-none focus:border-cyan-400 focus:ring-1 focus:ring-cyan-400/50"
         />
         <button
