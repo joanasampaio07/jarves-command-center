@@ -1,0 +1,110 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-primary: #00f2fe;
+    --color-primary-glow: rgba(0, 242, 254, 0.4);
+    --color-secondary: #4facfe;
+    --color-accent: #a855f7;
+    --bg-main: #02050e;
+    --bg-card: rgba(8, 14, 28, 0.85);
+    --border-glow: rgba(0, 242, 254, 0.2);
+  }
+
+  body {
+    background-color: #02050e;
+    background-image: 
+      radial-gradient(circle at 50% 0%, rgba(0, 242, 254, 0.08) 0%, transparent 50%),
+      radial-gradient(circle at 100% 100%, rgba(168, 85, 247, 0.05) 0%, transparent 40%),
+      linear-gradient(to right, rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+      linear-gradient(to bottom, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+    background-size: 100% 100%, 100% 100%, 40px 40px, 40px 40px;
+    color: #e2e8f0;
+    min-height: 100vh;
+  }
+}
+
+/* Custom Futuristic Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: rgba(3, 7, 18, 0.8);
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 242, 254, 0.25);
+  border-radius: 9999px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 242, 254, 0.5);
+}
+
+/* Glassmorphism Cards */
+.glass-panel {
+  background: rgba(8, 14, 28, 0.75);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 242, 254, 0.15);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+}
+
+.glass-panel-hover {
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.glass-panel-hover:hover {
+  border-color: rgba(0, 242, 254, 0.4);
+  box-shadow: 0 0 25px rgba(0, 242, 254, 0.2);
+  transform: translateY(-2px);
+}
+
+/* Neon Glows */
+.glow-cyan {
+  box-shadow: 0 0 20px rgba(0, 242, 254, 0.35);
+}
+
+.glow-purple {
+  box-shadow: 0 0 20px rgba(168, 85, 247, 0.35);
+}
+
+.glow-emerald {
+  box-shadow: 0 0 20px rgba(16, 185, 129, 0.35);
+}
+
+.glow-text {
+  text-shadow: 0 0 10px rgba(0, 242, 254, 0.5);
+}
+
+/* Sci-fi HUD corners */
+.hud-corner {
+  position: relative;
+}
+
+.hud-corner::before, .hud-corner::after {
+  content: '';
+  position: absolute;
+  width: 8px;
+  height: 8px;
+  border-color: rgba(0, 242, 254, 0.6);
+  pointer-events: none;
+}
+
+.hud-corner::before {
+  top: -1px;
+  left: -1px;
+  border-top: 2px solid rgba(0, 242, 254, 0.6);
+  border-left: 2px solid rgba(0, 242, 254, 0.6);
+}
+
+.hud-corner::after {
+  bottom: -1px;
+  right: -1px;
+  border-bottom: 2px solid rgba(0, 242, 254, 0.6);
+  border-right: 2px solid rgba(0, 242, 254, 0.6);
+}

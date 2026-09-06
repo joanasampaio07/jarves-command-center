@@ -1,0 +1,51 @@
+{
+  "routes": [
+    "/admin",
+    "/TextChat",
+    "/",
+    "/Calendar",
+    "/engine.io",
+    "/Integrations",
+    "/News",
+    "/Personalization",
+    "*"
+  ],
+  "sample_titles": [
+    "YouTube video player",
+    "Apagar usuário",
+    "Excluir conta",
+    "Sem hábitos",
+    "Nenhuma tarefa encontrada",
+    "Nenhum projeto",
+    "Editar conta",
+    "Vincular Mensalidade",
+    "Editar nome",
+    "Sem registros"
+  ],
+  "entities": [
+    "ActivityLog",
+    "Task",
+    "RawMessage",
+    "TaskOccurrence",
+    "Project",
+    "Wallet",
+    "HabitLog",
+    "Habit",
+    "Reminder",
+    "SupportTicket",
+    "User",
+    "AppTutorial",
+    "FinancialTransaction"
+  ],
+  "sections": [
+    "CHAT",
+    "WHATSAPP",
+    "Chat",
+    "CommandCenter",
+    "WhatsApp",
+    "Projetos",
+    "Tarefas",
+    "Rotina",
+    "whatsapp"
+  ]
+}
