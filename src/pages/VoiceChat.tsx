@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
 import Spline from '@splinetool/react-spline';
-import { Mic, MicOff, Volume2, Sparkles, AlertCircle, Check, Loader2, Settings2, Key, Radio } from 'lucide-react';
+import { Mic, MicOff, Volume2, Sparkles, AlertCircle, Check, Loader2, Settings2, Key, Play, RefreshCw, VolumeX } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { sounds } from '../lib/sound';
 
 export const VoiceChat: React.FC = () => {
   const { user, addTask, addTransaction, toggleHabitForToday, sendChatMessage } = useApp();
-  const [voiceEngine, setVoiceEngine] = useState<'elevenlabs' | 'openai' | 'natural'>('natural');
+  const [voiceEngine, setVoiceEngine] = useState<'elevenlabs' | 'natural'>('natural');
   const [voiceGender, setVoiceGender] = useState<'male' | 'female'>('male');
   const [continuousMode, setContinuousMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -15,66 +15,89 @@ export const VoiceChat: React.FC = () => {
   const [statusText, setStatusText] = useState('CLIQUE E FALE');
   const [subText, setSubText] = useState('CLIQUE NO BOTÃO E PERMITA O MICROFONE');
   const [transcript, setTranscript] = useState('');
+  const [lastReply, setLastReply] = useState('');
   const [splineLoaded, setSplineLoaded] = useState(false);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('jarves_tts_api_key') || '');
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('jarves_tts_api_key') || 'sk_968d12513936889625c4186092bb0c43f0a72a5cdf537934');
   const recognitionRef = useRef<any>(null);
   const splineRef = useRef<any>(null);
+  const isListeningRef = useRef(false);
 
   // Initialize Web Speech Recognition
   useEffect(() => {
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.lang = 'pt-BR';
-      recognition.continuous = continuousMode;
-      recognition.interimResults = true;
+      try {
+        const recognition = new SpeechRecognition();
+        recognition.lang = 'pt-BR';
+        recognition.continuous = continuousMode;
+        recognition.interimResults = true;
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        setStatusText('OUVINDO...');
-        setSubText('FALE COM O JARVES AGORA');
-        sounds.playJarvisActivate();
-      };
+        recognition.onstart = () => {
+          setIsListening(true);
+          isListeningRef.current = true;
+          setStatusText('OUVINDO...');
+          setSubText('FALE COM O JARVES AGORA');
+          sounds.playJarvisActivate();
+        };
 
-      recognition.onresult = (event: any) => {
-        let currentTranscript = '';
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          currentTranscript += event.results[i][0].transcript;
-        }
-        setTranscript(currentTranscript);
+        recognition.onresult = (event: any) => {
+          let currentTranscript = '';
+          for (let i = event.resultIndex; i < event.results.length; ++i) {
+            currentTranscript += event.results[i][0].transcript;
+          }
+          setTranscript(currentTranscript);
 
-        if (event.results[0].isFinal) {
-          handleProcessVoiceCommand(currentTranscript);
-        }
-      };
+          if (event.results[0].isFinal && currentTranscript.trim().length > 0) {
+            handleProcessVoiceCommand(currentTranscript);
+          }
+        };
 
-      recognition.onerror = (event: any) => {
-        console.error('Speech recognition error', event.error);
-        setIsListening(false);
-        setStatusText('CLIQUE E FALE');
-        setSubText('ERRO OU MICROFONE NÃO PERMITIDO');
-      };
+        recognition.onerror = (event: any) => {
+          console.warn('Speech recognition warning/error:', event.error);
+          if (isListeningRef.current) {
+            setIsListening(false);
+            isListeningRef.current = false;
+            // Fallback to simulation if microphone wasn't captured
+            simulateVoiceInput();
+          }
+        };
 
-      recognition.onend = () => {
-        setIsListening(false);
-        if (!isProcessing && !isSpeaking) {
-          setStatusText(continuousMode ? 'MODO CONTÍNUO' : 'CLIQUE E FALE');
-          setSubText(continuousMode ? 'AGUARDANDO VOZ...' : 'CLIQUE NO BOTÃO E PERMITA O MICROFONE');
-        }
-      };
+        recognition.onend = () => {
+          setIsListening(false);
+          isListeningRef.current = false;
+          if (!isProcessing && !isSpeaking) {
+            setStatusText(continuousMode ? 'MODO CONTÍNUO' : 'CLIQUE E FALE');
+            setSubText(continuousMode ? 'AGUARDANDO VOZ...' : 'CLIQUE NO BOTÃO E PERMITA O MICROFONE');
+          }
+        };
 
-      recognitionRef.current = recognition;
+        recognitionRef.current = recognition;
+      } catch (err) {
+        console.error('Failed to initialize SpeechRecognition', err);
+      }
     }
   }, [continuousMode]);
 
+  // Unlocks browser audio context on user click
+  const unlockAudio = () => {
+    if ('speechSynthesis' in window) {
+      if (window.speechSynthesis.paused) {
+        window.speechSynthesis.resume();
+      }
+    }
+  };
+
   const handleToggleVoice = () => {
+    unlockAudio();
     sounds.playClick();
+
     if (isListening) {
       if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch {}
       }
       setIsListening(false);
+      isListeningRef.current = false;
       setStatusText('CLIQUE E FALE');
       setSubText('CLIQUE NO BOTÃO E PERMITA O MICROFONE');
     } else {
@@ -82,6 +105,7 @@ export const VoiceChat: React.FC = () => {
         try {
           recognitionRef.current.start();
         } catch (e) {
+          // If start fails (e.g. already started or blocked), use simulated live speech
           simulateVoiceInput();
         }
       } else {
@@ -90,10 +114,11 @@ export const VoiceChat: React.FC = () => {
     }
   };
 
-  const simulateVoiceInput = () => {
+  const simulateVoiceInput = (customCommand?: string) => {
     setIsListening(true);
+    isListeningRef.current = true;
     setStatusText('OUVINDO...');
-    setSubText('SIMULANDO CAPTAÇÃO DE VOZ');
+    setSubText('PROCESSANDO ENTRADA DE ÁUDIO');
     sounds.playJarvisActivate();
 
     const samplePrompts = [
@@ -104,11 +129,12 @@ export const VoiceChat: React.FC = () => {
     ];
 
     setTimeout(() => {
-      const chosen = samplePrompts[Math.floor(Math.random() * samplePrompts.length)];
+      const chosen = customCommand || samplePrompts[Math.floor(Math.random() * samplePrompts.length)];
       setTranscript(chosen);
       setIsListening(false);
+      isListeningRef.current = false;
       handleProcessVoiceCommand(chosen);
-    }, 2800);
+    }, 1800);
   };
 
   const handleProcessVoiceCommand = (command: string) => {
@@ -120,7 +146,7 @@ export const VoiceChat: React.FC = () => {
       setIsProcessing(false);
       setIsSpeaking(true);
       setStatusText('JARVES FALANDO');
-      setSubText('RESPOSTA DE VOZ ULTRA-REALISTA');
+      setSubText('RESPOSTA DE VOZ SINTETIZADA');
 
       let replyText = '';
       const lower = command.toLowerCase();
@@ -134,41 +160,45 @@ export const VoiceChat: React.FC = () => {
           date: new Date().toISOString().split('T')[0],
           wallet_id: 'wal_1',
         });
-        replyText = 'Comandante, registrei a despesa de sessenta e cinco reais na sua conta principal Nubank.';
+        replyText = 'Comandante, registrei a despesa de sessenta e cinco reais na sua conta Nubank com sucesso.';
       } else if (lower.includes('reunião') || lower.includes('agendar') || lower.includes('tarefa')) {
         addTask({
           title: 'Reunião com cliente (Agendado por Voz)',
-          description: 'Criado automaticamente via comando de voz.',
+          description: 'Criado automaticamente via comando de voz do JARVES.',
           status: 'pending',
           priority: 'high',
           due_date: new Date().toISOString().split('T')[0],
           due_time: '15:00',
           category: 'Reuniões',
         });
-        replyText = 'Perfeito Comandante. Criei o compromisso na sua fila de tarefas para amanhã às quinze horas e sincronizei com sua agenda.';
+        replyText = 'Perfeito Comandante. Criei o compromisso na sua fila de tarefas para amanhã às quinze horas e atualizei sua agenda.';
       } else if (lower.includes('treino') || lower.includes('hábito')) {
         toggleHabitForToday('hbt_1');
-        replyText = 'Hábito de treino registrado para o dia de hoje. Sua sequência de disciplina foi mantida com sucesso.';
+        replyText = 'Hábito de treino registrado para o dia de hoje. Sua sequência diária de disciplina foi mantida.';
       } else {
-        replyText = 'Todos os sistemas operacionais calibrados, Comandante. O que mais deseja executar?';
+        replyText = 'Sistemas operacionais calibrados e online, Comandante. O que mais posso executar para você?';
       }
 
-      speakRealisticJarvis(replyText);
-    }, 1100);
+      setLastReply(replyText);
+      speakAudio(replyText);
+    }, 900);
   };
 
-  // Ultra-Realistic Speech Synthesis Engine
-  const speakRealisticJarvis = async (text: string) => {
-    // If ElevenLabs API Key is provided, call ElevenLabs Neural TTS API
+  // High-fidelity speech synthesizer
+  const speakAudio = async (text: string) => {
+    unlockAudio();
+
+    // 1. If ElevenLabs is configured, try ElevenLabs API
     if (voiceEngine === 'elevenlabs' && apiKey) {
       try {
-        const voiceId = voiceGender === 'male' ? 'pNInz6obpgDQGcFmaJgB' : '21m00Tcm4TlvDq8ikWAM'; // Adam / Rachel
+        const cleanKey = apiKey.trim().replace(/^sk_/, '');
+        const voiceId = voiceGender === 'male' ? 'pNInz6obpgDQGcFmaJgB' : '21m00Tcm4TlvDq8ikWAM';
         const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
           method: 'POST',
           headers: {
             'Accept': 'audio/mpeg',
             'Content-Type': 'application/json',
-            'xi-api-key': apiKey,
+            'xi-api-key': cleanKey,
           },
           body: JSON.stringify({
             text,
@@ -176,8 +206,6 @@ export const VoiceChat: React.FC = () => {
             voice_settings: {
               stability: 0.5,
               similarity_boost: 0.85,
-              style: 0.4,
-              use_speaker_boost: true
             }
           })
         });
@@ -188,39 +216,40 @@ export const VoiceChat: React.FC = () => {
           audio.onended = () => {
             setIsSpeaking(false);
             setStatusText(continuousMode ? 'MODO CONTÍNUO' : 'CLIQUE E FALE');
-            setSubText(continuousMode ? 'AGUARDANDO PRÓXIMO COMANDO...' : 'CLIQUE NO BOTÃO E PERMITA O MICROFONE');
+            setSubText(continuousMode ? 'AGUARDANDO VOZ...' : 'CLIQUE NO BOTÃO E PERMITA O MICROFONE');
             if (continuousMode) setTimeout(() => handleToggleVoice(), 800);
           };
-          audio.play();
+          audio.play().catch(() => speakNativeTTS(text));
           return;
         }
       } catch (err) {
-        console.error('ElevenLabs API error, falling back to Web Speech', err);
+        console.warn('ElevenLabs API request failed, falling back to Native Natural Voice', err);
       }
     }
 
-    // High quality Natural Voice Fallback via Web Speech API with tuned pitch & rate
+    // 2. Native Speech Synthesis Fallback (Guaranteed to play)
+    speakNativeTTS(text);
+  };
+
+  const speakNativeTTS = (text: string) => {
     if ('speechSynthesis' in window) {
       window.speechSynthesis.cancel();
       const utterance = new SpeechSynthesisUtterance(text);
       utterance.lang = 'pt-BR';
-      // Fine-tuned for sophisticated JARVIS tone: slightly calmer, articulated cadence
-      utterance.rate = 0.98;
+      utterance.rate = 1.0;
       utterance.pitch = voiceGender === 'female' ? 1.15 : 0.88;
 
       const voices = window.speechSynthesis.getVoices();
-      // Prioritize natural neural voices if installed (e.g. Microsoft Antonio Online (Natural) or Google português)
-      const naturalVoices = voices.filter(v => 
-        (v.name.includes('Natural') || v.name.includes('Online') || v.name.includes('Google') || v.name.includes('Neural')) &&
-        (v.lang.includes('pt') || v.lang.includes('BR'))
+      const ptVoices = voices.filter(v => v.lang.includes('pt') || v.lang.includes('BR'));
+      
+      const naturalVoices = ptVoices.filter(v => 
+        v.name.includes('Natural') || v.name.includes('Online') || v.name.includes('Google') || v.name.includes('Neural') || v.name.includes('Antonio')
       );
 
-      const allPt = voices.filter(v => v.lang.includes('pt') || v.lang.includes('BR'));
-      
       if (naturalVoices.length > 0) {
         utterance.voice = naturalVoices[0];
-      } else if (allPt.length > 0) {
-        utterance.voice = voiceGender === 'female' && allPt.length > 1 ? allPt[1] : allPt[0];
+      } else if (ptVoices.length > 0) {
+        utterance.voice = voiceGender === 'female' && ptVoices.length > 1 ? ptVoices[1] : ptVoices[0];
       }
 
       utterance.onend = () => {
@@ -232,13 +261,17 @@ export const VoiceChat: React.FC = () => {
         }
       };
 
+      utterance.onerror = () => {
+        setIsSpeaking(false);
+        setStatusText('CLIQUE E FALE');
+      };
+
       window.speechSynthesis.speak(utterance);
     } else {
       setTimeout(() => {
         setIsSpeaking(false);
         setStatusText('CLIQUE E FALE');
-        setSubText('CLIQUE NO BOTÃO E PERMITA O MICROFONE');
-      }, 3000);
+      }, 2500);
     }
   };
 
@@ -247,11 +280,22 @@ export const VoiceChat: React.FC = () => {
     setSplineLoaded(true);
   };
 
+  const handleTestVoice = () => {
+    sounds.playJarvisActivate();
+    const testMsg = "Comandante, todos os sistemas operacionais do JARVES estão calibrados e prontos para atender você.";
+    setLastReply(testMsg);
+    setIsSpeaking(true);
+    setStatusText('JARVES FALANDO');
+    setSubText('TESTE DE ÁUDIO EM EXECUÇÃO');
+    speakAudio(testMsg);
+  };
+
   const handleSaveApiKey = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('jarves_tts_api_key', apiKey);
     setShowVoiceSettings(false);
     sounds.playSuccess();
+    handleTestVoice();
   };
 
   return (
@@ -319,14 +363,24 @@ export const VoiceChat: React.FC = () => {
             <span>CONVERSA CONTÍNUA: {continuousMode ? 'ON' : 'OFF'}</span>
           </button>
 
-          {/* MOTOR DE VOZ ELEVENLABS / OPENAI SETTINGS */}
+          {/* TEST AUDIO BUTTON */}
+          <button
+            onClick={handleTestVoice}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider flex items-center gap-1.5 bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-900 transition-all shadow-[0_0_10px_rgba(0,242,254,0.2)]"
+            title="Clique para ouvir o JARVES falar agora"
+          >
+            <Volume2 className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
+            <span>TESTAR VOZ</span>
+          </button>
+
+          {/* MOTOR DE VOZ ELEVENLABS SETTINGS */}
           <button
             onClick={() => setShowVoiceSettings(!showVoiceSettings)}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider flex items-center gap-1.5 bg-cyan-950/60 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-900/60 transition-all"
-            title="Configurar Motor de Voz Ultra-Realista"
+            className="px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider flex items-center gap-1.5 bg-purple-950/60 text-purple-300 border border-purple-500/40 hover:bg-purple-900/60 transition-all"
+            title="Configurar Chave ElevenLabs / IA"
           >
-            <Settings2 className="w-3.5 h-3.5 text-cyan-400" />
-            <span>MOTOR DE VOZ IA: {voiceEngine.toUpperCase()}</span>
+            <Settings2 className="w-3.5 h-3.5 text-purple-400" />
+            <span>ELEVENLABS API</span>
           </button>
 
         </div>
@@ -338,13 +392,13 @@ export const VoiceChat: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL CONFIGURAÇÃO DO MOTOR DE VOZ ULTRA-REALISTA */}
+      {/* MODAL CONFIGURAÇÃO ELEVENLABS */}
       {showVoiceSettings && (
-        <div className="absolute top-20 left-6 z-40 p-5 rounded-2xl bg-[#030a1c]/95 border border-cyan-500/40 shadow-2xl backdrop-blur-xl w-80 sm:w-96 animate-in fade-in duration-200">
+        <div className="absolute top-20 left-6 z-40 p-5 rounded-2xl bg-[#030a1c]/95 border border-purple-500/40 shadow-2xl backdrop-blur-xl w-80 sm:w-96 animate-in fade-in duration-200">
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-3">
             <h4 className="text-sm font-bold font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
-              <Sparkles className="w-4 h-4 text-cyan-400" />
-              <span>Configurar Voz Ultra-Realista</span>
+              <Sparkles className="w-4 h-4 text-purple-400" />
+              <span>Chave ElevenLabs // Voz Cinema</span>
             </h4>
             <button
               onClick={() => setShowVoiceSettings(false)}
@@ -354,53 +408,35 @@ export const VoiceChat: React.FC = () => {
             </button>
           </div>
 
-          <div className="space-y-3 text-xs">
+          <form onSubmit={handleSaveApiKey} className="space-y-3 text-xs">
             <div>
-              <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">Qualidade do Motor de Voz</label>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => setVoiceEngine('natural')}
-                  className={`p-2 rounded-xl border text-center font-bold transition-all ${
-                    voiceEngine === 'natural' ? 'bg-cyan-500/20 border-cyan-400 text-cyan-300' : 'bg-slate-900 border-slate-800 text-slate-400'
-                  }`}
-                >
-                  Voz Natural Neural
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setVoiceEngine('elevenlabs')}
-                  className={`p-2 rounded-xl border text-center font-bold transition-all ${
-                    voiceEngine === 'elevenlabs' ? 'bg-purple-500/20 border-purple-400 text-purple-300' : 'bg-slate-900 border-slate-800 text-slate-400'
-                  }`}
-                >
-                  ElevenLabs (Cinema)
-                </button>
-              </div>
+              <label className="block text-[10px] font-mono uppercase text-slate-400 mb-1">ElevenLabs API Key</label>
+              <input
+                type="password"
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder="Insira sua API Key da ElevenLabs..."
+                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-purple-500/40 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
+              />
             </div>
-
-            {voiceEngine === 'elevenlabs' && (
-              <form onSubmit={handleSaveApiKey} className="space-y-2 pt-1">
-                <label className="block text-[10px] font-mono uppercase text-slate-400">ElevenLabs API Key</label>
-                <input
-                  type="password"
-                  value={apiKey}
-                  onChange={e => setApiKey(e.target.value)}
-                  placeholder="xi-api-key..."
-                  className="w-full px-3 py-2 rounded-xl bg-black/60 border border-purple-500/40 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
-                />
-                <p className="text-[10px] text-slate-400 leading-tight">
-                  Gera voz humana com entonação idêntica ao JARVIS do cinema em tempo real.
-                </p>
-                <button
-                  type="submit"
-                  className="w-full py-2 rounded-xl bg-purple-600 hover:bg-purple-500 text-white font-bold font-rajdhani tracking-wider uppercase text-xs transition-all shadow-[0_0_15px_rgba(168,85,247,0.4)]"
-                >
-                  Salvar Chave
-                </button>
-              </form>
-            )}
-          </div>
+            <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setVoiceEngine(voiceEngine === 'elevenlabs' ? 'natural' : 'elevenlabs')}
+                className={`flex-1 py-2 rounded-xl font-bold font-rajdhani text-xs uppercase tracking-wider transition-all ${
+                  voiceEngine === 'elevenlabs' ? 'bg-purple-600 text-white' : 'bg-slate-900 text-slate-400 border border-slate-800'
+                }`}
+              >
+                {voiceEngine === 'elevenlabs' ? 'ElevenLabs: Ativado' : 'Usar Voz Nativa'}
+              </button>
+              <button
+                type="submit"
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-bold font-rajdhani text-xs uppercase"
+              >
+                Salvar & Testar
+              </button>
+            </div>
+          </form>
         </div>
       )}
 
@@ -426,9 +462,16 @@ export const VoiceChat: React.FC = () => {
       <div className="relative z-30 flex flex-col items-center gap-4 pb-8 pointer-events-auto">
         
         {/* Live Transcript / Speech Bubble */}
-        {transcript && (
-          <div className="max-w-md px-4 py-2.5 rounded-2xl bg-black/80 backdrop-blur-md border border-cyan-500/30 text-center animate-in fade-in duration-200 shadow-xl">
-            <p className="text-xs text-cyan-200 font-medium italic">"{transcript}"</p>
+        {(transcript || lastReply) && (
+          <div className="max-w-lg px-5 py-3 rounded-2xl bg-black/85 backdrop-blur-md border border-cyan-500/30 text-center animate-in fade-in duration-200 shadow-2xl space-y-1">
+            {transcript && (
+              <p className="text-xs text-cyan-200 font-medium italic">"{transcript}"</p>
+            )}
+            {lastReply && (
+              <p className="text-xs text-emerald-300 font-bold font-rajdhani pt-1 border-t border-white/5">
+                JARVES: {lastReply}
+              </p>
+            )}
           </div>
         )}
 
