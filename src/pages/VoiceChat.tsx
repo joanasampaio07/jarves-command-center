@@ -199,11 +199,13 @@ export const VoiceChat: React.FC = () => {
   const speakRealisticElevenLabs = async (text: string) => {
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
+      currentAudioRef.current = null;
     }
 
-    if (voiceEngine === 'elevenlabs' && elevenApiKey) {
+    const activeApiKey = (elevenApiKey && elevenApiKey.startsWith('sk_')) ? elevenApiKey.trim() : defaultTTS;
+
+    if (voiceEngine === 'elevenlabs' && activeApiKey) {
       try {
-        const cleanKey = elevenApiKey.trim().replace(/^sk_/, '');
         const voiceId = voiceGender === 'male' ? 'onwK4e9ZLuTAKqWW03F9' : '21m00Tcm4TlvDq8ikWAM';
         
         const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
@@ -211,14 +213,16 @@ export const VoiceChat: React.FC = () => {
           headers: {
             'Accept': 'audio/mpeg',
             'Content-Type': 'application/json',
-            'xi-api-key': cleanKey,
+            'xi-api-key': activeApiKey,
           },
           body: JSON.stringify({
             text,
             model_id: 'eleven_multilingual_v2',
             voice_settings: {
-              stability: 0.5,
-              similarity_boost: 0.8,
+              stability: 0.6,
+              similarity_boost: 0.85,
+              style: 0.15,
+              use_speaker_boost: true
             }
           })
         });
@@ -236,13 +240,16 @@ export const VoiceChat: React.FC = () => {
             if (continuousMode) setTimeout(() => handleToggleVoice(), 800);
           };
 
-          audio.onerror = () => {
+          audio.onerror = (e) => {
+            console.warn('Audio element error, falling back to native TTS', e);
             speakNativeTTS(text);
           };
 
           await audio.play();
           return;
         } else {
+          const errText = await response.text();
+          console.warn('ElevenLabs API returned error status:', response.status, errText);
           speakNativeTTS(text);
         }
       } catch (err) {
