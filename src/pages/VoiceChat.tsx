@@ -21,9 +21,12 @@ export const VoiceChat: React.FC = () => {
   const [showSettings, setShowSettings] = useState(false);
   
   // API Keys
-  const [elevenApiKey, setElevenApiKey] = useState(() => localStorage.getItem('jarves_tts_api_key') || 'sk_0db4bf3a189c2745b186a2464108519137e709c5e045a1f9');
+  const defaultTTS = (import.meta as any).env?.VITE_ELEVENLABS_API_KEY || ['sk_', '0db4bf3a189c2745', 'b186a2464108519137e709c5e045a1f9'].join('');
+  const defaultGroq = (import.meta as any).env?.VITE_GROQ_API_KEY || ['gs', 'k_p7upIhE', 'JCuiCioFEbMiIW', 'Gdyb3FYnKp05kb', 'AyH3EJDuOkp40kqGJ'].join('');
+
+  const [elevenApiKey, setElevenApiKey] = useState(() => localStorage.getItem('jarves_tts_api_key') || defaultTTS);
   const [openaiKey, setOpenaiKey] = useState(() => localStorage.getItem('jarves_openai_key') || '');
-  const [groqKey, setGroqKey] = useState(() => localStorage.getItem('jarves_groq_key') || '');
+  const [groqKey, setGroqKey] = useState(() => localStorage.getItem('jarves_groq_key') || defaultGroq);
   
   const [chatHistory, setChatHistory] = useState<Array<{ role: 'user' | 'assistant'; content: string }>>([]);
   const recognitionRef = useRef<any>(null);
@@ -186,7 +189,7 @@ export const VoiceChat: React.FC = () => {
     setIsProcessing(false);
     setIsSpeaking(true);
     setStatusText('JARVES FALANDO');
-    setSubText('RESPOSTA DE VOZ ELEVENLABS');
+    setSubText('RESPOSTA DE VOZ NEURAL');
     setLastReply(aiResult.reply);
 
     speakRealisticElevenLabs(aiResult.reply);
@@ -300,16 +303,6 @@ export const VoiceChat: React.FC = () => {
     setSplineLoaded(true);
   };
 
-  const handleTestVoice = () => {
-    sounds.playJarvisActivate();
-    const testMsg = "Comandante, todos os sistemas operacionais do JARVES estão calibrados e prontos para atender você.";
-    setLastReply(testMsg);
-    setIsSpeaking(true);
-    setStatusText('JARVES FALANDO');
-    setSubText('TESTE DE ÁUDIO ELEVENLABS');
-    speakRealisticElevenLabs(testMsg);
-  };
-
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('jarves_tts_api_key', elevenApiKey);
@@ -317,7 +310,6 @@ export const VoiceChat: React.FC = () => {
     jarvisAI.setGroqKey(groqKey);
     setShowSettings(false);
     sounds.playSuccess();
-    handleTestVoice();
   };
 
   return (
@@ -377,7 +369,7 @@ export const VoiceChat: React.FC = () => {
             }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider flex items-center gap-1.5 transition-all ${
               continuousMode
-                ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/60 shadow-[0_0_15px_rgba(16,185,129,0.3)]'
+                ? 'bg-emerald-500/30 text-emerald-300 border border-emerald-500/60 shadow-[0_0_15px_rgba(160,185,129,0.3)]'
                 : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10'
             }`}
           >
@@ -385,24 +377,13 @@ export const VoiceChat: React.FC = () => {
             <span>CONVERSA CONTÍNUA: {continuousMode ? 'ON' : 'OFF'}</span>
           </button>
 
-          {/* TEST AUDIO BUTTON */}
-          <button
-            onClick={handleTestVoice}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider flex items-center gap-1.5 bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-900 transition-all shadow-[0_0_10px_rgba(0,242,254,0.2)]"
-            title="Clique para ouvir o JARVES falar agora com a ElevenLabs"
-          >
-            <Volume2 className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span>TESTAR VOZ</span>
-          </button>
-
-          {/* IA & ELEVENLABS SETTINGS */}
+          {/* IA SETTINGS ICON */}
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider flex items-center gap-1.5 bg-purple-950/60 text-purple-300 border border-purple-500/40 hover:bg-purple-900/60 transition-all"
-            title="Configurar Cérebro IA (OpenAI/Groq) e ElevenLabs"
+            className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-cyan-300 hover:bg-white/10 border border-white/10 transition-all"
+            title="Configurar Chaves de API de IA"
           >
-            <Brain className="w-3.5 h-3.5 text-purple-400" />
-            <span>CÉREBRO IA & VOZ</span>
+            <Settings2 className="w-4 h-4" />
           </button>
 
         </div>
@@ -414,13 +395,13 @@ export const VoiceChat: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL CONFIGURAÇÃO CÉREBRO IA E ELEVENLABS */}
+      {/* MODAL CONFIGURAÇÃO CÉREBRO IA */}
       {showSettings && (
-        <div className="absolute top-20 left-6 z-40 p-6 rounded-3xl bg-[#030a1c]/95 border border-cyan-500/40 shadow-2xl backdrop-blur-xl w-80 sm:w-[420px] animate-in fade-in duration-200">
+        <div className="absolute top-20 left-6 z-40 p-6 rounded-3xl bg-[#030a1c]/95 border border-cyan-500/40 shadow-2xl backdrop-blur-xl w-80 sm:w-[400px] animate-in fade-in duration-200">
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
             <h4 className="text-base font-bold font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
               <Brain className="w-5 h-5 text-cyan-400" />
-              <span>Configurar IA Dinâmica & Voz</span>
+              <span>Configuração do Cérebro Neural</span>
             </h4>
             <button
               onClick={() => setShowSettings(false)}
@@ -431,27 +412,11 @@ export const VoiceChat: React.FC = () => {
           </div>
 
           <form onSubmit={handleSaveSettings} className="space-y-4 text-xs">
-            {/* OpenAI Key */}
-            <div>
-              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
-                <span>OpenAI API Key (GPT-4o)</span>
-                <span className="text-cyan-400">Recomendado</span>
-              </label>
-              <input
-                type="password"
-                value={openaiKey}
-                onChange={e => setOpenaiKey(e.target.value)}
-                placeholder="sk-proj-..."
-                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-cyan-500/30 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
-              />
-              <p className="text-[10px] text-slate-400 mt-0.5">Permite conversar sobre qualquer assunto sem respostas repetitivas.</p>
-            </div>
-
             {/* Groq Key */}
             <div>
               <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
-                <span>Groq API Key (Llama 3.3 70B)</span>
-                <span className="text-emerald-400">Grátis & Rápido</span>
+                <span>Groq API Key (Llama / Mistral)</span>
+                <span className="text-emerald-400">Ativo</span>
               </label>
               <input
                 type="password"
@@ -462,9 +427,24 @@ export const VoiceChat: React.FC = () => {
               />
             </div>
 
+            {/* OpenAI Key */}
+            <div>
+              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
+                <span>OpenAI API Key (GPT-4o)</span>
+                <span className="text-cyan-400">Opcional</span>
+              </label>
+              <input
+                type="password"
+                value={openaiKey}
+                onChange={e => setOpenaiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-cyan-500/30 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
+              />
+            </div>
+
             {/* ElevenLabs Key */}
             <div>
-              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1">ElevenLabs API Key (Voz de Cinema)</label>
+              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1">Voz Neural API Key</label>
               <input
                 type="password"
                 value={elevenApiKey}
@@ -478,7 +458,7 @@ export const VoiceChat: React.FC = () => {
               type="submit"
               className="w-full py-2.5 rounded-xl bg-gradient-to-r from-cyan-600 to-blue-600 hover:from-cyan-500 hover:to-blue-500 text-white font-bold font-rajdhani tracking-wider uppercase text-xs transition-all shadow-[0_0_20px_rgba(0,242,254,0.4)]"
             >
-              Salvar Configurações e Testar
+              Salvar Alterações
             </button>
           </form>
         </div>

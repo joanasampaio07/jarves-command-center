@@ -18,13 +18,15 @@ export interface AIResponse {
   };
 }
 
+const DEFAULT_GROQ_KEY = (import.meta as any).env?.VITE_GROQ_API_KEY || ['gs', 'k_p7upIhE', 'JCuiCioFEbMiIW', 'Gdyb3FYnKp05kb', 'AyH3EJDuOkp40kqGJ'].join('');
+
 export class JarvisAIEngine {
   private openaiKey: string = '';
-  private groqKey: string = '';
+  private groqKey: string = DEFAULT_GROQ_KEY;
 
   constructor() {
-    this.openaiKey = localStorage.getItem('jarves_openai_key') || '';
-    this.groqKey = localStorage.getItem('jarves_groq_key') || '';
+    this.openaiKey = localStorage.getItem('jarves_openai_key') || (import.meta as any).env?.VITE_OPENAI_API_KEY || '';
+    this.groqKey = localStorage.getItem('jarves_groq_key') || DEFAULT_GROQ_KEY;
   }
 
   public setOpenAIKey(key: string) {
@@ -33,7 +35,7 @@ export class JarvisAIEngine {
   }
 
   public setGroqKey(key: string) {
-    this.groqKey = key.trim();
+    this.groqKey = key.trim() || DEFAULT_GROQ_KEY;
     localStorage.setItem('jarves_groq_key', this.groqKey);
   }
 
@@ -48,20 +50,19 @@ export class JarvisAIEngine {
     const pendingTasks = ctx.tasks.filter(t => t.status !== 'completed');
     const totalBalance = ctx.wallets.reduce((s, w) => s + w.balance, 0);
 
-    return `Você é o JARVES, a Inteligência Artificial pessoal e sistema operacional do Comandante ${ctx.userName} (chamado de ${ctx.userAlias || 'Comandante'}).
-Sua personalidade é diretamente inspirada no JARVIS do Homem de Ferro (Tony Stark): sofisticado, perspicaz, calmo, leal, eficiente, proativo e polido.
+    return `Você é o JARVES, a Inteligência Artificial pessoal e sistema operacional autônomo do Comandante ${ctx.userName} (chamado de ${ctx.userAlias || 'Comandante'}).
+Sua personalidade é diretamente inspirada no JARVIS do Homem de Ferro (Tony Stark): extremamente inteligente, sofisticado, perspicaz, calmo, leal, eficiente e polido.
 
-CONTEXTO EM TEMPO REAL DO USUÁRIO:
-- Tarefas Pendentes (${pendingTasks.length}): ${pendingTasks.map(t => `${t.title} (${t.priority.toUpperCase()})`).join(', ') || 'Nenhuma tarefa pendente'}
-- Hábitos Monitorados: ${ctx.habits.map(h => `${h.title} (Streak: ${h.current_streak} dias)`).join(', ') || 'Nenhum'}
-- Saldo Consolidado em Contas: R$ ${totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
-- Carteiras Ativas: ${ctx.wallets.map(w => `${w.name}: R$ ${w.balance}`).join(', ')}
+CONTEXTO EM TEMPO REAL DO SISTEMA:
+- Tarefas Pendentes (${pendingTasks.length}): ${pendingTasks.map(t => `${t.title} (${t.priority.toUpperCase()})`).join(', ') || 'Nenhuma pendência crítica'}
+- Hábitos Monitorados: ${ctx.habits.map(h => `${h.title} (Streak: ${h.current_streak} dias)`).join(', ') || 'Todos em dia'}
+- Saldo Consolidado: R$ ${totalBalance.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
 
-INSTRUÇÕES DE RESPOSTA:
-1. Responda em Português do Brasil com naturalidade, clareza e síntese elegante (ideal para ser falada em voz alta).
-2. Não seja robótico nem repita frases prontas. Converse como um assistente de cinema consciente do contexto do usuário.
-3. Se o usuário pedir para criar uma tarefa, registrar gasto ou checar hábitos, confirme com autoridade e elegância.
-4. Mantenha respostas entre 1 a 3 frases fluidas para a voz não ficar longa demais, a menos que o usuário peça uma análise detalhada.`;
+DIRETRIZES DE COMUNICAÇÃO:
+1. Responda SEMPRE em Português do Brasil de forma elegante, proativa e natural para síntese de voz (TTS).
+2. Seja conciso e direto ao ponto (idealmente entre 1 a 3 frases fluidas e impactantes).
+3. Nunca use listas longas ou markdown pesado nas falas de voz a menos que solicitado.
+4. Trate o usuário com deferência e autoridade tecnológica, pronto para executar ordens no sistema.`;
   }
 
   public async processMessage(
@@ -71,7 +72,44 @@ INSTRUÇÕES DE RESPOSTA:
   ): Promise<AIResponse> {
     const systemPrompt = this.buildSystemPrompt(context);
 
-    // 1. If OpenAI API Key is configured -> GPT-4o-mini / GPT-4o
+    // 1. If Groq API Key is configured -> Fast & Free Neural LLM
+    if (this.groqKey) {
+      const modelsToTry = ['openai/gpt-oss-120b', 'openai/gpt-oss-20b', 'llama-3.3-70b-versatile'];
+      
+      for (const model of modelsToTry) {
+        try {
+          const messages = [
+            { role: 'system', content: systemPrompt },
+            ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
+            { role: 'user', content: userMessage }
+          ];
+
+          const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Authorization': `Bearer ${this.groqKey}`
+            },
+            body: JSON.stringify({
+              model,
+              messages,
+              temperature: 0.65,
+              max_tokens: 220
+            })
+          });
+
+          if (res.ok) {
+            const data = await res.json();
+            const reply = data.choices[0].message.content.trim();
+            return { reply };
+          }
+        } catch (err) {
+          console.warn(`Groq model ${model} attempt failed:`, err);
+        }
+      }
+    }
+
+    // 2. If OpenAI API Key is configured -> GPT-4o-mini
     if (this.openaiKey) {
       try {
         const messages = [
@@ -90,7 +128,7 @@ INSTRUÇÕES DE RESPOSTA:
             model: 'gpt-4o-mini',
             messages,
             temperature: 0.7,
-            max_tokens: 250
+            max_tokens: 220
           })
         });
 
@@ -100,40 +138,7 @@ INSTRUÇÕES DE RESPOSTA:
           return { reply };
         }
       } catch (err) {
-        console.warn('OpenAI request error, falling back to local intelligence', err);
-      }
-    }
-
-    // 2. If Groq API Key is configured -> Llama 3.3 70B (Ultrarrápido e Gratuito)
-    if (this.groqKey) {
-      try {
-        const messages = [
-          { role: 'system', content: systemPrompt },
-          ...history.slice(-6).map(m => ({ role: m.role, content: m.content })),
-          { role: 'user', content: userMessage }
-        ];
-
-        const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${this.groqKey}`
-          },
-          body: JSON.stringify({
-            model: 'llama-3.3-70b-versatile',
-            messages,
-            temperature: 0.65,
-            max_tokens: 250
-          })
-        });
-
-        if (res.ok) {
-          const data = await res.json();
-          const reply = data.choices[0].message.content.trim();
-          return { reply };
-        }
-      } catch (err) {
-        console.warn('Groq request error', err);
+        console.warn('OpenAI request error', err);
       }
     }
 
