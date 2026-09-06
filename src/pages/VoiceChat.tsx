@@ -492,20 +492,6 @@ export const VoiceChat: React.FC = () => {
       {/* BOTTOM CONTROLS & FLOATING MICROPHONE */}
       <div className="relative z-30 flex flex-col items-center gap-4 pb-8 pointer-events-auto">
         
-        {/* Live Transcript / Speech Bubble */}
-        {(transcript || lastReply) && (
-          <div className="max-w-xl px-5 py-3.5 rounded-2xl bg-black/85 backdrop-blur-md border border-cyan-500/30 text-center animate-in fade-in duration-200 shadow-2xl space-y-1.5">
-            {transcript && (
-              <p className="text-xs text-cyan-200 font-medium italic">"{transcript}"</p>
-            )}
-            {lastReply && (
-              <p className="text-xs sm:text-sm text-emerald-300 font-semibold font-sans pt-1 border-t border-white/5 leading-relaxed">
-                🤖 <strong>JARVES:</strong> {lastReply}
-              </p>
-            )}
-          </div>
-        )}
-
         {/* Central Circular Microphone Button */}
         <div className="relative flex flex-col items-center">
           
