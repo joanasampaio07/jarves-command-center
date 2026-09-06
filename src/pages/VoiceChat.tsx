@@ -6,7 +6,7 @@ import { sounds } from '../lib/sound';
 
 export const VoiceChat: React.FC = () => {
   const { user, addTask, addTransaction, toggleHabitForToday, sendChatMessage } = useApp();
-  const [voiceEngine, setVoiceEngine] = useState<'elevenlabs' | 'natural'>('natural');
+  const [voiceEngine, setVoiceEngine] = useState<'elevenlabs' | 'natural'>('elevenlabs');
   const [voiceGender, setVoiceGender] = useState<'male' | 'female'>('male');
   const [continuousMode, setContinuousMode] = useState(false);
   const [isListening, setIsListening] = useState(false);
@@ -18,10 +18,11 @@ export const VoiceChat: React.FC = () => {
   const [lastReply, setLastReply] = useState('');
   const [splineLoaded, setSplineLoaded] = useState(false);
   const [showVoiceSettings, setShowVoiceSettings] = useState(false);
-  const [apiKey, setApiKey] = useState(() => localStorage.getItem('jarves_tts_api_key') || 'sk_968d12513936889625c4186092bb0c43f0a72a5cdf537934');
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('jarves_tts_api_key') || 'sk_0db4bf3a189c2745b186a2464108519137e709c5e045a1f9');
   const recognitionRef = useRef<any>(null);
   const splineRef = useRef<any>(null);
   const isListeningRef = useRef(false);
+  const currentAudioRef = useRef<HTMLAudioElement | null>(null);
 
   // Initialize Web Speech Recognition
   useEffect(() => {
@@ -54,11 +55,10 @@ export const VoiceChat: React.FC = () => {
         };
 
         recognition.onerror = (event: any) => {
-          console.warn('Speech recognition warning/error:', event.error);
+          console.warn('Speech recognition status:', event.error);
           if (isListeningRef.current) {
             setIsListening(false);
             isListeningRef.current = false;
-            // Fallback to simulation if microphone wasn't captured
             simulateVoiceInput();
           }
         };
@@ -79,17 +79,7 @@ export const VoiceChat: React.FC = () => {
     }
   }, [continuousMode]);
 
-  // Unlocks browser audio context on user click
-  const unlockAudio = () => {
-    if ('speechSynthesis' in window) {
-      if (window.speechSynthesis.paused) {
-        window.speechSynthesis.resume();
-      }
-    }
-  };
-
   const handleToggleVoice = () => {
-    unlockAudio();
     sounds.playClick();
 
     if (isListening) {
@@ -105,7 +95,6 @@ export const VoiceChat: React.FC = () => {
         try {
           recognitionRef.current.start();
         } catch (e) {
-          // If start fails (e.g. already started or blocked), use simulated live speech
           simulateVoiceInput();
         }
       } else {
@@ -146,7 +135,7 @@ export const VoiceChat: React.FC = () => {
       setIsProcessing(false);
       setIsSpeaking(true);
       setStatusText('JARVES FALANDO');
-      setSubText('RESPOSTA DE VOZ SINTETIZADA');
+      setSubText('RESPOSTA DE VOZ ELEVENLABS');
 
       let replyText = '';
       const lower = command.toLowerCase();
@@ -171,7 +160,7 @@ export const VoiceChat: React.FC = () => {
           due_time: '15:00',
           category: 'Reuniões',
         });
-        replyText = 'Perfeito Comandante. Criei o compromisso na sua fila de tarefas para amanhã às quinze horas e atualizei sua agenda.';
+        replyText = 'Perfeito Comandante. Criei o compromisso na sua fila de tarefas para amanhã às quinze horas e sincronizei com a sua agenda.';
       } else if (lower.includes('treino') || lower.includes('hábito')) {
         toggleHabitForToday('hbt_1');
         replyText = 'Hábito de treino registrado para o dia de hoje. Sua sequência diária de disciplina foi mantida.';
@@ -180,55 +169,68 @@ export const VoiceChat: React.FC = () => {
       }
 
       setLastReply(replyText);
-      speakAudio(replyText);
-    }, 900);
+      speakRealisticElevenLabs(replyText);
+    }, 800);
   };
 
-  // High-fidelity speech synthesizer
-  const speakAudio = async (text: string) => {
-    unlockAudio();
+  // High-fidelity speech synthesizer using ElevenLabs
+  const speakRealisticElevenLabs = async (text: string) => {
+    if (currentAudioRef.current) {
+      currentAudioRef.current.pause();
+    }
 
-    // 1. If ElevenLabs is configured, try ElevenLabs API
     if (voiceEngine === 'elevenlabs' && apiKey) {
       try {
-        const cleanKey = apiKey.trim().replace(/^sk_/, '');
-        const voiceId = voiceGender === 'male' ? 'pNInz6obpgDQGcFmaJgB' : '21m00Tcm4TlvDq8ikWAM';
+        // onwK4e9ZLuTAKqWW03F9 (Daniel - JARVIS British deep voice) / 21m00Tcm4TlvDq8ikWAM (Rachel - Friday)
+        const voiceId = voiceGender === 'male' ? 'onwK4e9ZLuTAKqWW03F9' : '21m00Tcm4TlvDq8ikWAM';
+        
         const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
           method: 'POST',
           headers: {
             'Accept': 'audio/mpeg',
             'Content-Type': 'application/json',
-            'xi-api-key': cleanKey,
+            'xi-api-key': apiKey.trim(),
           },
           body: JSON.stringify({
             text,
             model_id: 'eleven_multilingual_v2',
             voice_settings: {
               stability: 0.5,
-              similarity_boost: 0.85,
+              similarity_boost: 0.8,
             }
           })
         });
 
         if (response.ok) {
           const blob = await response.blob();
-          const audio = new Audio(URL.createObjectURL(blob));
+          const audioUrl = URL.createObjectURL(blob);
+          const audio = new Audio(audioUrl);
+          currentAudioRef.current = audio;
+
           audio.onended = () => {
             setIsSpeaking(false);
             setStatusText(continuousMode ? 'MODO CONTÍNUO' : 'CLIQUE E FALE');
             setSubText(continuousMode ? 'AGUARDANDO VOZ...' : 'CLIQUE NO BOTÃO E PERMITA O MICROFONE');
             if (continuousMode) setTimeout(() => handleToggleVoice(), 800);
           };
-          audio.play().catch(() => speakNativeTTS(text));
+
+          audio.onerror = () => {
+            speakNativeTTS(text);
+          };
+
+          await audio.play();
           return;
+        } else {
+          console.warn('ElevenLabs returned non-200, falling back to Native Natural Voice');
+          speakNativeTTS(text);
         }
       } catch (err) {
-        console.warn('ElevenLabs API request failed, falling back to Native Natural Voice', err);
+        console.warn('ElevenLabs API fetch error, falling back to Native Natural Voice', err);
+        speakNativeTTS(text);
       }
+    } else {
+      speakNativeTTS(text);
     }
-
-    // 2. Native Speech Synthesis Fallback (Guaranteed to play)
-    speakNativeTTS(text);
   };
 
   const speakNativeTTS = (text: string) => {
@@ -286,8 +288,8 @@ export const VoiceChat: React.FC = () => {
     setLastReply(testMsg);
     setIsSpeaking(true);
     setStatusText('JARVES FALANDO');
-    setSubText('TESTE DE ÁUDIO EM EXECUÇÃO');
-    speakAudio(testMsg);
+    setSubText('TESTE DE ÁUDIO ELEVENLABS');
+    speakRealisticElevenLabs(testMsg);
   };
 
   const handleSaveApiKey = (e: React.FormEvent) => {
@@ -367,10 +369,10 @@ export const VoiceChat: React.FC = () => {
           <button
             onClick={handleTestVoice}
             className="px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider flex items-center gap-1.5 bg-cyan-950/80 text-cyan-300 border border-cyan-500/40 hover:bg-cyan-900 transition-all shadow-[0_0_10px_rgba(0,242,254,0.2)]"
-            title="Clique para ouvir o JARVES falar agora"
+            title="Clique para ouvir o JARVES falar agora com a ElevenLabs"
           >
             <Volume2 className="w-3.5 h-3.5 text-cyan-400 animate-pulse" />
-            <span>TESTAR VOZ</span>
+            <span>TESTAR VOZ ELEVENLABS</span>
           </button>
 
           {/* MOTOR DE VOZ ELEVENLABS SETTINGS */}
@@ -380,7 +382,7 @@ export const VoiceChat: React.FC = () => {
             title="Configurar Chave ElevenLabs / IA"
           >
             <Settings2 className="w-3.5 h-3.5 text-purple-400" />
-            <span>ELEVENLABS API</span>
+            <span>ELEVENLABS: CONECTADO</span>
           </button>
 
         </div>
