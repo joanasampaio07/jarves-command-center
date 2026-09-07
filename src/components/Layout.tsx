@@ -222,22 +222,6 @@ export const Layout: React.FC<LayoutProps> = ({ currentPage, onNavigate, childre
               <LogOut className="w-4 h-4" />
             </button>
           </div>
-
-          {/* Quick Toggle: Visão Admin vs Visão Cliente Final */}
-          <div className="flex items-center justify-between px-1 pt-1.5 border-t border-white/5 text-[10px] font-mono text-slate-400">
-            <span>Visão:</span>
-            <button
-              onClick={toggleUserRole}
-              className={`px-2 py-0.5 rounded-md border font-bold transition-all ${
-                isAdmin 
-                  ? 'bg-red-500/20 text-red-300 border-red-500/30' 
-                  : 'bg-cyan-500/20 text-cyan-300 border-cyan-500/30'
-              }`}
-              title="Clique para alternar entre Visão do Administrador e Visão do Cliente Final"
-            >
-              {isAdmin ? '👑 ADMIN (Dono)' : '👤 CLIENTE (Final)'}
-            </button>
-          </div>
         </div>
       </aside>
 

@@ -102,18 +102,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const isAdminEmail = (email: string) => {
+    const lower = email.toLowerCase();
+    return lower.includes('admin') || lower.includes('msconsultoria') || lower.includes('diretoria') || lower.includes('joanasampaio') || lower.includes('stark');
+  };
+
   const loginWithGoogle = async () => {
     setIsLoading(true);
     sounds.playDataBeep();
-    // Simula autenticação OAuth 2.0 do Google com popup ou redirect seguro
+    // Simula autenticação OAuth 2.0 do Google
     await new Promise((r) => setTimeout(r, 1200));
 
     const googleUser: AuthUser = {
       id: 'usr_g_' + Math.random().toString(36).substring(2, 9),
-      name: 'Comandante Google',
-      email: 'usuario.google@gmail.com',
-      alias: 'Comandante',
-      avatar_url: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=150&auto=format&fit=crop&q=80',
+      name: 'Comandante M&S',
+      email: 'diretoria@msconsultoria.com.br',
+      alias: 'Diretor',
+      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      role: 'admin',
       provider: 'google',
       plan: 'pro',
       createdAt: new Date().toISOString(),
@@ -134,7 +140,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const loginWithMicrosoft = async () => {
     setIsLoading(true);
     sounds.playDataBeep();
-    // Simula autenticação Microsoft Azure AD / MS Account
     await new Promise((r) => setTimeout(r, 1200));
 
     const msUser: AuthUser = {
@@ -143,6 +148,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       email: 'corporativo@outlook.com',
       alias: 'Diretor',
       avatar_url: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?w=150&auto=format&fit=crop&q=80',
+      role: 'user',
       provider: 'microsoft',
       plan: 'pro',
       createdAt: new Date().toISOString(),
@@ -165,15 +171,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sounds.playDataBeep();
     await new Promise((r) => setTimeout(r, 800));
 
+    const isAdm = isAdminEmail(email);
     const nameFromEmail = email.split('@')[0].replace(/[._-]/g, ' ');
-    const formattedName = nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1);
+    const formattedName = isAdm ? 'Diretor M&S' : (nameFromEmail.charAt(0).toUpperCase() + nameFromEmail.slice(1));
 
     const emailUser: AuthUser = {
       id: 'usr_em_' + Math.random().toString(36).substring(2, 9),
       name: formattedName || 'Comandante',
       email: email,
-      alias: formattedName.split(' ')[0] || 'Chefe',
-      avatar_url: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+      alias: isAdm ? 'Diretor' : (formattedName.split(' ')[0] || 'Chefe'),
+      avatar_url: isAdm ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' : 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&auto=format&fit=crop&q=80',
+      role: isAdm ? 'admin' : 'user',
       provider: 'email',
       plan: 'pro',
       createdAt: new Date().toISOString(),
@@ -197,12 +205,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     sounds.playDataBeep();
     await new Promise((r) => setTimeout(r, 900));
 
+    const isAdm = isAdminEmail(email);
     const newUser: AuthUser = {
       id: 'usr_reg_' + Math.random().toString(36).substring(2, 9),
       name: name.trim() || 'Novo Comandante',
       email: email.trim(),
-      alias: name.trim().split(' ')[0] || 'Comandante',
-      avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      alias: isAdm ? 'Diretor' : (name.trim().split(' ')[0] || 'Comandante'),
+      avatar_url: isAdm ? 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80' : 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+      role: isAdm ? 'admin' : 'user',
       provider: 'email',
       plan: 'pro',
       createdAt: new Date().toISOString(),

@@ -56,8 +56,9 @@ interface SupportTicket {
 
 export const Admin: React.FC = () => {
   const { user, tasks, habits, transactions, activityLogs, logActivity } = useApp();
-  const [activeTab, setActiveTab] = useState<'overview' | 'customers' | 'support' | 'telemetry'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'customers' | 'support' | 'checkout_guide' | 'telemetry'>('overview');
   const [searchQuery, setSearchQuery] = useState('');
+  const [copiedEmailTemplate, setCopiedEmailTemplate] = useState(false);
   
   // Mock Customers Data
   const [customers, setCustomers] = useState<Customer[]>([
@@ -308,6 +309,18 @@ export const Admin: React.FC = () => {
         >
           <Headphones className="w-3.5 h-3.5" />
           <span>Suporte Técnico ({tickets.filter(t => t.status !== 'resolved').length} abertos)</span>
+        </button>
+
+        <button
+          onClick={() => { sounds.playClick(); setActiveTab('checkout_guide'); }}
+          className={`px-4 py-2 rounded-xl text-xs font-rajdhani font-bold uppercase tracking-wider transition-all flex items-center gap-1.5 ${
+            activeTab === 'checkout_guide'
+              ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 shadow-[0_0_15px_rgba(16,185,129,0.2)]'
+              : 'text-slate-400 hover:text-white hover:bg-white/5'
+          }`}
+        >
+          <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+          <span>Como Vender & Receber (Checkouts & E-mail)</span>
         </button>
 
         <button
@@ -690,7 +703,133 @@ export const Admin: React.FC = () => {
         </div>
       )}
 
-      {/* 4. TELEMETRY TAB */}
+      {/* 4. CHECKOUT & EMAIL GUIDE TAB */}
+      {activeTab === 'checkout_guide' && (
+        <div className="space-y-8 animate-in fade-in duration-200">
+          
+          {/* Top Banner */}
+          <div className="p-6 rounded-3xl bg-gradient-to-r from-emerald-950/40 via-[#04101e] to-[#040918] border border-emerald-500/30 space-y-2">
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-emerald-500/20 text-emerald-300 font-mono text-xs font-bold border border-emerald-500/40">
+              <CreditCard className="w-3.5 h-3.5 text-emerald-400" />
+              <span>GUIA DE VENDAS, CHECKOUT & RECEBIMENTO PIX/CARTÃO</span>
+            </div>
+            <h2 className="text-2xl font-bold font-rajdhani text-white">
+              Como Cobrar R$ 29 / R$ 99 e Receber o Dinheiro Diretamente na Sua Conta
+            </h2>
+            <p className="text-xs text-slate-300 max-w-3xl leading-relaxed">
+              Você pode usar qualquer plataforma de pagamentos do Brasil (Kiwify, Mercado Pago, Asaas, Hotmart ou Stripe). O cliente paga no PIX ou Cartão e recebe o acesso imediatamente com o e-mail de boas-vindas.
+            </p>
+          </div>
+
+          {/* 3 Step Flow */}
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            
+            {/* Step 1 */}
+            <div className="p-6 rounded-3xl bg-[#040918] border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 flex items-center justify-center font-rajdhani font-bold text-lg">
+                1
+              </div>
+              <h3 className="font-rajdhani text-lg font-bold text-white uppercase tracking-wider">
+                Cadastre o Produto no Checkout
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Crie uma conta gratuita na <strong>Kiwify</strong>, <strong>Mercado Pago</strong> ou <strong>Asaas</strong> e crie o produto:
+              </p>
+              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] font-mono text-slate-300 space-y-1">
+                <p>• Nome: <strong>JARVES IA - M&S Consultoria</strong></p>
+                <p>• Preço: <strong>R$ 29,00 / mês</strong> (Plano Starter)</p>
+                <p>• Upsell: <strong>R$ 99,00 / mês</strong> (Plano VIP)</p>
+                <p>• Tipo: <strong>Assinatura Recorrente</strong></p>
+              </div>
+            </div>
+
+            {/* Step 2 */}
+            <div className="p-6 rounded-3xl bg-[#040918] border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-cyan-500/20 border border-cyan-500/40 text-cyan-300 flex items-center justify-center font-rajdhani font-bold text-lg">
+                2
+              </div>
+              <h3 className="font-rajdhani text-lg font-bold text-white uppercase tracking-wider">
+                O Dinheiro Cai na Sua Conta
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                Quando o cliente compra via PIX ou Cartão:
+              </p>
+              <div className="p-3 rounded-xl bg-slate-900/80 border border-slate-800 text-[11px] font-mono text-slate-300 space-y-1">
+                <p>• PIX: <strong>Aprovado em 2 segundos</strong></p>
+                <p>• Saldo liberado no seu painel da Kiwify/Asaas</p>
+                <p>• Saque automático para sua chave PIX/banco</p>
+              </div>
+            </div>
+
+            {/* Step 3 */}
+            <div className="p-6 rounded-3xl bg-[#040918] border border-slate-800 space-y-3">
+              <div className="w-10 h-10 rounded-2xl bg-purple-500/20 border border-purple-500/40 text-purple-300 flex items-center justify-center font-rajdhani font-bold text-lg">
+                3
+              </div>
+              <h3 className="font-rajdhani text-lg font-bold text-white uppercase tracking-wider">
+                E-mail de Boas-Vindas Automático
+              </h3>
+              <p className="text-xs text-slate-400 leading-relaxed">
+                A plataforma de pagamento (ou você) envia as instruções e o link oficial do JARVES para o comprador logar com o e-mail dele.
+              </p>
+            </div>
+
+          </div>
+
+          {/* Email Template Card */}
+          <div className="p-6 rounded-3xl bg-[#040918] border border-cyan-500/30 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+              <div>
+                <h3 className="font-rajdhani text-xl font-bold text-white uppercase tracking-wider flex items-center gap-2">
+                  <Mail className="w-5 h-5 text-cyan-400" />
+                  <span>Modelo de E-mail de Boas-Vindas Pronto para Enviar</span>
+                </h3>
+                <p className="text-xs text-slate-400 mt-0.5">
+                  Copie e configure na sua plataforma de checkout (Kiwify, Hotmart, etc.) no campo "E-mail pós-venda".
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  sounds.playClick();
+                  const emailText = `Assunto: 🎉 Seu Acesso ao JARVES da M&S Consultoria Foi Liberado!\n\nOlá Comandante,\n\nParabéns! Seu pagamento foi confirmado e seu acesso ao JARVES (Sistema Operacional de Inteligência Artificial da M&S Consultoria) já está 100% liberado.\n\n🔗 Link de Acesso Oficial:\nhttps://jarves-command-center.onrender.com\n\n📌 Como Acessar:\n1. Acesse o link acima.\n2. Clique em 'Continuar com Google' ou faça login com o mesmo e-mail que você usou na compra.\n3. Seu painel com comando de voz neural, robô 3D, gestão de tarefas e finanças será inicializado automaticamente.\n\nCaso precise de suporte, conte com nosso time.\n\nAtenciosamente,\nEquipe M&S Consultoria\nhttps://jarves-command-center.onrender.com`;
+                  navigator.clipboard.writeText(emailText);
+                  setCopiedEmailTemplate(true);
+                  sounds.playSuccess();
+                  setTimeout(() => setCopiedEmailTemplate(false), 3000);
+                }}
+                className="px-4 py-2 rounded-xl bg-cyan-600 hover:bg-cyan-500 text-white font-rajdhani font-bold text-xs uppercase tracking-wider transition-all shadow-[0_0_15px_rgba(0,242,254,0.3)] flex items-center gap-2"
+              >
+                {copiedEmailTemplate ? <CheckCircle2 className="w-4 h-4" /> : <Mail className="w-4 h-4" />}
+                <span>{copiedEmailTemplate ? 'Copiado para a Área de Transferência!' : 'Copiar Modelo de E-mail'}</span>
+              </button>
+            </div>
+
+            <div className="p-5 rounded-2xl bg-black/60 border border-slate-800 text-xs font-mono text-slate-300 leading-relaxed whitespace-pre-line">
+              {`Assunto: 🎉 Seu Acesso ao JARVES da M&S Consultoria Foi Liberado!
+
+Olá Comandante,
+
+Parabéns! Seu pagamento foi confirmado e seu acesso ao JARVES (Sistema de Inteligência Artificial da M&S Consultoria) já está liberado.
+
+🔗 Link de Acesso Oficial:
+https://jarves-command-center.onrender.com
+
+📌 Como Acessar:
+1. Acesse o link acima.
+2. Faça login com o mesmo e-mail que você usou na compra.
+3. Seu painel com comando de voz neural, robô 3D e inteligência autônoma será ativado instantaneamente.
+
+Atenciosamente,
+Equipe M&S Consultoria`}
+            </div>
+          </div>
+
+        </div>
+      )}
+
+      {/* 5. TELEMETRY TAB */}
       {activeTab === 'telemetry' && (
         <div className="space-y-6 animate-in fade-in duration-200">
           
