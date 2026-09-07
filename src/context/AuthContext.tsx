@@ -103,21 +103,29 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const isAdminEmail = (email: string) => {
-    const lower = email.toLowerCase();
-    return lower.includes('admin') || lower.includes('msconsultoria') || lower.includes('diretoria') || lower.includes('joanasampaio') || lower.includes('stark');
+    const lower = email.toLowerCase().trim();
+    const adminEmails = [
+      'mesconsultoria@gmail.com',
+      'sampalira@gmail.com',
+      'diretoria@msconsultoria.com.br',
+      'admin@msconsultoria.com.br',
+      'joanasampaio07@gmail.com'
+    ];
+    if (adminEmails.includes(lower)) return true;
+    return lower.includes('mesconsultoria') || lower.includes('sampalira') || lower.includes('admin') || lower.includes('msconsultoria') || lower.includes('diretoria');
   };
 
   const loginWithGoogle = async () => {
     setIsLoading(true);
     sounds.playDataBeep();
-    // Simula autenticação OAuth 2.0 do Google
+    // Simula autenticação OAuth 2.0 do Google para o Administrador Master
     await new Promise((r) => setTimeout(r, 1200));
 
     const googleUser: AuthUser = {
       id: 'usr_g_' + Math.random().toString(36).substring(2, 9),
       name: 'Comandante M&S',
-      email: 'diretoria@msconsultoria.com.br',
-      alias: 'Diretor',
+      email: 'mesconsultoria@gmail.com',
+      alias: 'Diretor M&S',
       avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
       role: 'admin',
       provider: 'google',
