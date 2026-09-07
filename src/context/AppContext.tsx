@@ -29,8 +29,16 @@ interface AppContextType {
   activityLogs: ActivityLog[];
   isVoiceListening: boolean;
   activeQuickAction: 'task' | 'transaction' | 'habit' | 'project' | null;
+  quotaInfo: {
+    limit: number;
+    usedToday: number;
+    remaining: number;
+    percentage: number;
+    isLimitReached: boolean;
+  };
   // Actions
   updateUserPreferences: (prefs: Partial<User['preferences']>) => void;
+  setUserPlan: (plan: 'free' | 'pro' | 'ultra') => void;
   addTask: (task: Omit<Task, 'id' | 'created_at'>) => void;
   updateTask: (id: string, updates: Partial<Task>) => void;
   deleteTask: (id: string) => void;
@@ -55,9 +63,15 @@ interface AppContextType {
 const defaultUser: User = {
   id: 'usr_jarves_01',
   email: 'comandante@jarves.ai',
-  name: 'Comandante',
+  name: 'Comandante Stark',
   alias: 'Chefe',
-  avatar_url: 'https://media.base44.com/images/public/6a3646e0db5dd46f5604735e/c7776f487_Capturadetela2026-06-24212847.png',
+  avatar_url: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=150&auto=format&fit=crop&q=80',
+  plan: 'pro',
+  daily_quota: {
+    limit: 100,
+    used_today: 14,
+    reset_date: new Date().toISOString().split('T')[0],
+  },
   preferences: {
     marvis_theme: 'cyan',
     personality: 'jarvis',
@@ -435,7 +449,43 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     sounds.playClick();
   };
 
-  // Dynamic Contextual AI Chat Message Sender
+  const setUserPlan = (newPlan: 'free' | 'pro' | 'ultra') => {
+    sounds.playSuccess();
+    const limit = newPlan === 'ultra' ? 1000 : newPlan === 'pro' ? 200 : 50;
+    setUser(prev => ({
+      ...prev,
+      plan: newPlan,
+      daily_quota: {
+        limit,
+        used_today: prev.daily_quota?.used_today || 0,
+        reset_date: new Date().toISOString().split('T')[0]
+      }
+    }));
+  };
+
+  const getEffectiveQuota = () => {
+    const today = new Date().toISOString().split('T')[0];
+    const userLimit = user.plan === 'ultra' ? 1000 : user.plan === 'pro' ? 200 : 50;
+    const quota = user.daily_quota || { limit: userLimit, used_today: 0, reset_date: today };
+    
+    // Auto-reset se virou o dia
+    const usedToday = quota.reset_date === today ? quota.used_today : 0;
+    const remaining = Math.max(0, quota.limit - usedToday);
+    const percentage = Math.min(100, Math.round((usedToday / quota.limit) * 100));
+    const isLimitReached = usedToday >= quota.limit;
+
+    return {
+      limit: quota.limit,
+      usedToday,
+      remaining,
+      percentage,
+      isLimitReached
+    };
+  };
+
+  const quotaInfo = getEffectiveQuota();
+
+  // Dynamic Contextual AI Chat Message Sender with Daily Rate Limiting
   const sendChatMessage = async (content: string) => {
     if (!content.trim()) return;
 
@@ -448,6 +498,40 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     };
 
     setChatMessages(prev => [...prev, userMsg]);
+
+    const today = new Date().toISOString().split('T')[0];
+    const currentQuota = getEffectiveQuota();
+
+    // Verificação de Limite Diário (proteção contra consumo desmedido de tokens)
+    if (currentQuota.isLimitReached) {
+      sounds.playWarning();
+      const quotaWarningMsg: ChatMessage = {
+        id: generateId(),
+        role: 'assistant',
+        content: `⚠️ Comandante, você atingiu o seu limite diário de ${currentQuota.limit} comandos neurais do plano ${user.plan?.toUpperCase() || 'FREE'}. O seu consumo será renovado automaticamente à meia-noite. Para continuar agora sem restrições, faça upgrade para o Plano PRO / ULTRA ou configure sua própria chave de API na aba de Configurações!`,
+        timestamp: new Date().toISOString(),
+        actions_suggested: [
+          { label: '⭐ Fazer Upgrade de Plano', action: 'upgrade' },
+          { label: '🔑 Usar Minha API Key (BYOK)', action: 'settings' }
+        ]
+      };
+      setChatMessages(prev => [...prev, quotaWarningMsg]);
+      return;
+    }
+
+    // Incrementa cota diária utilizada
+    setUser(prev => {
+      const q = prev.daily_quota || { limit: currentQuota.limit, used_today: 0, reset_date: today };
+      const newUsed = (q.reset_date === today ? q.used_today : 0) + 1;
+      return {
+        ...prev,
+        daily_quota: {
+          limit: q.limit,
+          used_today: newUsed,
+          reset_date: today
+        }
+      };
+    });
 
     const context = {
       userName: user.name,
@@ -523,7 +607,9 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
         activityLogs,
         isVoiceListening,
         activeQuickAction,
+        quotaInfo,
         updateUserPreferences,
+        setUserPlan,
         addTask,
         updateTask,
         deleteTask,

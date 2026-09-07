@@ -23,6 +23,7 @@ import { JarvisOrb } from '../components/JarvisOrb';
 import { PageName } from '../components/Layout';
 import { formatCurrency, formatDate } from '../lib/utils';
 import { sounds } from '../lib/sound';
+import { getTimeGreeting } from '../lib/greeting';
 
 interface CommandCenterProps {
   onNavigate: (page: PageName) => void;
@@ -62,6 +63,8 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ onNavigate }) => {
     onNavigate('TextChat');
   };
 
+  const timeGreeting = getTimeGreeting();
+
   return (
     <div className="space-y-8 animate-in fade-in duration-500 pb-16">
       
@@ -81,7 +84,7 @@ export const CommandCenter: React.FC<CommandCenterProps> = ({ onNavigate }) => {
             </div>
 
             <h1 className="text-3xl sm:text-4xl lg:text-5xl font-bold font-rajdhani text-white tracking-wide leading-tight">
-              Bom dia, <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">{user.name}</span>.
+              {timeGreeting}, <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 to-blue-400">{user.name}</span>.
             </h1>
 
             <p className="text-sm sm:text-base text-slate-300 max-w-xl leading-relaxed">

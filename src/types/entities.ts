@@ -24,6 +24,12 @@ export interface User {
     google_calendar_connected?: boolean;
     notion_connected?: boolean;
   };
+  plan?: 'free' | 'pro' | 'ultra';
+  daily_quota?: {
+    limit: number;
+    used_today: number;
+    reset_date: string; // YYYY-MM-DD
+  };
   created_at: string;
 }
 
