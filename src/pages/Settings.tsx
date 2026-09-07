@@ -183,24 +183,30 @@ export const Settings: React.FC = () => {
               <span>COTA DIÁRIA DE TOKENS & INTELIGÊNCIA ARTIFICIAL</span>
             </div>
             <h3 className="text-xl font-bold font-rajdhani text-white">
-              Consumo do Plano {user.plan?.toUpperCase() || 'PRO'}: {quotaInfo.usedToday} / {quotaInfo.limit} comandos hoje
+              {quotaInfo.isUnlimited 
+                ? 'PLANO SUPER ADMIN MASTER (M&S CONSULTORIA): ACESSO ILIMITADO ∞'
+                : `Consumo do Plano ${user.plan?.toUpperCase() || 'PRO'}: ${quotaInfo.usedToday} / ${quotaInfo.limit} comandos hoje`}
             </h3>
             <p className="text-xs text-slate-300">
-              Controle automático para garantir estabilidade do servidor e proteção contra custos descontrolados. A cota é zerada diariamente à meia-noite.
+              {quotaInfo.isUnlimited 
+                ? 'Como Super Administrador e Proprietário, sua conta possui acesso total e irrestrito a todos os modelos de IA, sem cotas diárias ou bloqueios.'
+                : 'Controle automático para garantir estabilidade do servidor e proteção contra custos descontrolados. A cota é zerada diariamente à meia-noite.'}
             </p>
 
             {/* Quota Progress Bar */}
             <div className="w-full bg-slate-900 rounded-full h-3.5 p-0.5 border border-slate-800">
               <div 
                 className={`h-full rounded-full transition-all duration-500 ${
-                  quotaInfo.percentage > 85 ? 'bg-gradient-to-r from-amber-500 to-red-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'
+                  quotaInfo.isUnlimited 
+                    ? 'bg-gradient-to-r from-emerald-400 via-cyan-400 to-purple-500 w-full' 
+                    : quotaInfo.percentage > 85 ? 'bg-gradient-to-r from-amber-500 to-red-500' : 'bg-gradient-to-r from-cyan-500 to-blue-500'
                 }`}
-                style={{ width: `${Math.min(100, Math.max(5, quotaInfo.percentage))}%` }}
+                style={{ width: quotaInfo.isUnlimited ? '100%' : `${Math.min(100, Math.max(5, quotaInfo.percentage))}%` }}
               />
             </div>
             <div className="flex justify-between text-[11px] font-mono text-slate-400">
-              <span>{quotaInfo.remaining} comandos restantes hoje</span>
-              <span>{quotaInfo.percentage}% utilizado</span>
+              <span>{quotaInfo.isUnlimited ? 'Comandos: Ilimitados (∞)' : `${quotaInfo.remaining} comandos restantes hoje`}</span>
+              <span>{quotaInfo.isUnlimited ? 'Status: 100% Liberado' : `${quotaInfo.percentage}% utilizado`}</span>
             </div>
           </div>
 
