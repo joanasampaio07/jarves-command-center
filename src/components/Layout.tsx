@@ -184,16 +184,18 @@ export const Layout: React.FC<LayoutProps> = ({ currentPage, onNavigate, childre
             <div className="flex items-center justify-between text-[11px] font-mono mb-1.5">
               <span className="text-slate-400 flex items-center gap-1">
                 <Zap className="w-3 h-3 text-cyan-400 group-hover:animate-pulse" />
-                <span>Cota IA ({user.plan?.toUpperCase() || 'PRO'})</span>
+                <span>Cota IA ({isAdmin ? 'ADMIN' : user.plan?.toUpperCase() || 'PRO'})</span>
               </span>
-              <span className="text-cyan-300 font-bold">{quotaInfo.usedToday}/{quotaInfo.limit}</span>
+              <span className="text-cyan-300 font-bold">
+                {isAdmin ? 'ILIMITADA ∞' : `${quotaInfo.usedToday}/${quotaInfo.limit}`}
+              </span>
             </div>
             <div className="w-full bg-slate-950 rounded-full h-1.5 overflow-hidden">
               <div 
                 className={`h-full rounded-full transition-all duration-300 ${
-                  quotaInfo.percentage > 85 ? 'bg-amber-400' : 'bg-cyan-400'
+                  isAdmin ? 'bg-gradient-to-r from-cyan-400 to-purple-400 w-full' : quotaInfo.percentage > 85 ? 'bg-amber-400' : 'bg-cyan-400'
                 }`}
-                style={{ width: `${Math.min(100, Math.max(5, quotaInfo.percentage))}%` }}
+                style={{ width: isAdmin ? '100%' : `${Math.min(100, Math.max(5, quotaInfo.percentage))}%` }}
               />
             </div>
           </div>
@@ -241,7 +243,7 @@ export const Layout: React.FC<LayoutProps> = ({ currentPage, onNavigate, childre
             className="px-2 py-1 rounded-lg bg-cyan-950/60 border border-cyan-500/30 text-[10px] font-mono text-cyan-300 flex items-center gap-1"
           >
             <Zap className="w-3 h-3 text-cyan-400" />
-            <span>{quotaInfo.usedToday}/{quotaInfo.limit}</span>
+            <span>{isAdmin ? 'ILIMITADO ∞' : `${quotaInfo.usedToday}/${quotaInfo.limit}`}</span>
           </button>
           <button
             onClick={() => handleNavClick('VoiceChat')}
@@ -316,8 +318,14 @@ export const Layout: React.FC<LayoutProps> = ({ currentPage, onNavigate, childre
               title="Consumo de Tokens IA Diário"
             >
               <Zap className="w-3.5 h-3.5 text-cyan-400 group-hover:scale-110 transition-transform" />
-              <span>Cota Diária: <strong>{quotaInfo.usedToday}/{quotaInfo.limit}</strong></span>
-              <span className="text-[10px] px-1 rounded bg-cyan-500/20 font-bold ml-1">{user.plan?.toUpperCase() || 'PRO'}</span>
+              <span>
+                Cota Diária: <strong>{isAdmin ? 'ILIMITADA ∞' : `${quotaInfo.usedToday}/${quotaInfo.limit}`}</strong>
+              </span>
+              <span className={`text-[10px] px-1.5 py-0.5 rounded font-bold ml-1 ${
+                isAdmin ? 'bg-red-500/20 text-red-300 border border-red-500/30' : 'bg-cyan-500/20 text-cyan-300'
+              }`}>
+                {isAdmin ? 'MASTER' : user.plan?.toUpperCase() || 'PRO'}
+              </span>
             </button>
 
             {/* Quick Action Button */}

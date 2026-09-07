@@ -463,8 +463,35 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
     }));
   };
 
+  const isMasterAdmin = (email?: string) => {
+    if (!email) return false;
+    const lower = email.toLowerCase().trim();
+    const adminEmails = [
+      'mesconsultoria@gmail.com',
+      'sampalira@gmail.com',
+      'diretoria@msconsultoria.com.br',
+      'admin@msconsultoria.com.br',
+      'joanasampaio07@gmail.com'
+    ];
+    if (adminEmails.includes(lower)) return true;
+    return lower.includes('mesconsultoria') || lower.includes('sampalira') || lower.includes('admin') || lower.includes('diretoria');
+  };
+
   const getEffectiveQuota = () => {
     const today = new Date().toISOString().split('T')[0];
+    const isAdmin = isMasterAdmin(user.email);
+
+    if (isAdmin) {
+      return {
+        limit: Infinity,
+        usedToday: user.daily_quota?.used_today || 0,
+        remaining: Infinity,
+        percentage: 0,
+        isLimitReached: false,
+        isUnlimited: true
+      };
+    }
+
     const userLimit = user.plan === 'ultra' ? 1000 : user.plan === 'pro' ? 200 : 50;
     const quota = user.daily_quota || { limit: userLimit, used_today: 0, reset_date: today };
     
@@ -479,7 +506,8 @@ export const AppProvider: React.FC<{ children: React.ReactNode }> = ({ children 
       usedToday,
       remaining,
       percentage,
-      isLimitReached
+      isLimitReached,
+      isUnlimited: false
     };
   };
 
