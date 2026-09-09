@@ -20,9 +20,9 @@ export const VoiceChat: React.FC = () => {
   const [splineLoaded, setSplineLoaded] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   
-  // API Keys
-  const defaultTTS = (import.meta as any).env?.VITE_ELEVENLABS_API_KEY || ['sk_', '0db4bf3a189c2745', 'b186a2464108519137e709c5e045a1f9'].join('');
-  const defaultGroq = (import.meta as any).env?.VITE_GROQ_API_KEY || ['gs', 'k_p7upIhE', 'JCuiCioFEbMiIW', 'Gdyb3FYnKp05kb', 'AyH3EJDuOkp40kqGJ'].join('');
+  // API Keys from Environment or Local Storage
+  const defaultTTS = (import.meta as any).env?.VITE_ELEVENLABS_API_KEY || '';
+  const defaultGroq = (import.meta as any).env?.VITE_GROQ_API_KEY || '';
 
   const [elevenApiKey, setElevenApiKey] = useState(() => localStorage.getItem('jarves_tts_api_key') || defaultTTS);
   const [openaiKey, setOpenaiKey] = useState(() => localStorage.getItem('jarves_openai_key') || '');
@@ -195,20 +195,24 @@ export const VoiceChat: React.FC = () => {
     speakRealisticElevenLabs(aiResult.reply);
   };
 
+  const [voiceId, setVoiceId] = useState(() => localStorage.getItem('jarves_voice_id') || 'onwK4e9ZLuTAKqWW03F9');
+  const [voiceError, setVoiceError] = useState<string | null>(null);
+  const [isTestingVoice, setIsTestingVoice] = useState(false);
+
   // High-fidelity speech synthesizer using ElevenLabs
-  const speakRealisticElevenLabs = async (text: string) => {
+  const speakRealisticElevenLabs = async (text: string, customVoiceId?: string, overrideKey?: string): Promise<boolean> => {
     if (currentAudioRef.current) {
       currentAudioRef.current.pause();
       currentAudioRef.current = null;
     }
 
-    const activeApiKey = (elevenApiKey && elevenApiKey.startsWith('sk_')) ? elevenApiKey.trim() : defaultTTS;
+    setVoiceError(null);
+    const activeApiKey = (overrideKey || elevenApiKey || defaultTTS || '').trim();
+    const activeVoice = customVoiceId || voiceId || 'onwK4e9ZLuTAKqWW03F9';
 
-    if (voiceEngine === 'elevenlabs' && activeApiKey) {
+    if (voiceEngine === 'elevenlabs' && activeApiKey && activeApiKey.startsWith('sk_')) {
       try {
-        const voiceId = voiceGender === 'male' ? 'onwK4e9ZLuTAKqWW03F9' : '21m00Tcm4TlvDq8ikWAM';
-        
-        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`, {
+        const response = await fetch(`https://api.elevenlabs.io/v1/text-to-speech/${activeVoice}`, {
           method: 'POST',
           headers: {
             'Accept': 'audio/mpeg',
@@ -219,8 +223,8 @@ export const VoiceChat: React.FC = () => {
             text,
             model_id: 'eleven_multilingual_v2',
             voice_settings: {
-              stability: 0.6,
-              similarity_boost: 0.85,
+              stability: 0.5,
+              similarity_boost: 0.8,
               style: 0.15,
               use_speaker_boost: true
             }
@@ -241,23 +245,51 @@ export const VoiceChat: React.FC = () => {
           };
 
           audio.onerror = (e) => {
-            console.warn('Audio element error, falling back to native TTS', e);
+            console.warn('Audio element error', e);
+            setVoiceError('Falha ao reproduzir áudio do navegador.');
             speakNativeTTS(text);
           };
 
           await audio.play();
-          return;
+          return true;
         } else {
-          const errText = await response.text();
-          console.warn('ElevenLabs API returned error status:', response.status, errText);
+          const errData = await response.json().catch(() => ({}));
+          const errMsg = errData?.detail?.message || errData?.detail?.status || `Erro HTTP ${response.status}`;
+          console.warn('ElevenLabs API returned error:', errMsg);
+          setVoiceError(`ElevenLabs: ${errMsg}`);
           speakNativeTTS(text);
+          return false;
         }
-      } catch (err) {
-        console.warn('ElevenLabs API fetch error, using Native Voice', err);
+      } catch (err: any) {
+        console.warn('ElevenLabs API fetch error', err);
+        setVoiceError(`Falha de conexão com a ElevenLabs: ${err?.message || 'Erro de rede'}`);
         speakNativeTTS(text);
+        return false;
       }
     } else {
+      if (!activeApiKey) {
+        setVoiceError('Chave da ElevenLabs não configurada. Usando sintetizador local.');
+      }
       speakNativeTTS(text);
+      return false;
+    }
+  };
+
+  const handleTestVoice = async (testKey?: string, testVoice?: string) => {
+    setIsTestingVoice(true);
+    setVoiceError(null);
+    sounds.playJarvisActivate();
+    const keyToUse = testKey || elevenApiKey || defaultTTS;
+    const voiceToUse = testVoice || voiceId;
+    
+    const success = await speakRealisticElevenLabs(
+      'Olá Comandante! Todos os sistemas do JARVES estão calibrados e a voz de cinema está ativa.',
+      voiceToUse,
+      keyToUse
+    );
+    setIsTestingVoice(false);
+    if (!success) {
+      sounds.playClick();
     }
   };
 
@@ -313,6 +345,7 @@ export const VoiceChat: React.FC = () => {
   const handleSaveSettings = (e: React.FormEvent) => {
     e.preventDefault();
     localStorage.setItem('jarves_tts_api_key', elevenApiKey);
+    localStorage.setItem('jarves_voice_id', voiceId);
     jarvisAI.setOpenAIKey(openaiKey);
     jarvisAI.setGroqKey(groqKey);
     setShowSettings(false);
@@ -343,6 +376,7 @@ export const VoiceChat: React.FC = () => {
             onClick={() => {
               sounds.playClick();
               setVoiceGender('male');
+              setVoiceId('onwK4e9ZLuTAKqWW03F9');
             }}
             className={`px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider transition-all ${
               voiceGender === 'male'
@@ -350,22 +384,18 @@ export const VoiceChat: React.FC = () => {
                 : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10'
             }`}
           >
-            VOZ MASCULINA (JARVIS)
+            VOZ JARVIS (DANIEL)
           </button>
 
-          {/* VOZ FEMININA */}
+          {/* TESTAR VOZ DIRETO */}
           <button
-            onClick={() => {
-              sounds.playClick();
-              setVoiceGender('female');
-            }}
-            className={`px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider transition-all ${
-              voiceGender === 'female'
-                ? 'bg-purple-500/30 text-purple-300 border border-purple-500/60 shadow-[0_0_15px_rgba(168,85,247,0.3)]'
-                : 'bg-white/5 text-slate-400 border border-white/10 hover:bg-white/10'
-            }`}
+            onClick={() => handleTestVoice()}
+            disabled={isTestingVoice || isSpeaking}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold font-rajdhani tracking-wider flex items-center gap-1.5 bg-gradient-to-r from-blue-600/40 to-cyan-600/40 text-cyan-200 border border-cyan-400/40 hover:from-blue-600/60 hover:to-cyan-600/60 transition-all shadow-[0_0_10px_rgba(0,242,254,0.2)] disabled:opacity-50"
+            title="Ouvir a voz oficial do JARVIS agora"
           >
-            VOZ FEMININA (FRIDAY)
+            {isTestingVoice ? <Loader2 className="w-3.5 h-3.5 animate-spin text-cyan-300" /> : <Volume2 className="w-3.5 h-3.5 text-cyan-300" />}
+            <span>TESTAR VOZ JARVIS</span>
           </button>
 
           {/* CONVERSA CONTÍNUA */}
@@ -387,10 +417,11 @@ export const VoiceChat: React.FC = () => {
           {/* IA SETTINGS ICON */}
           <button
             onClick={() => setShowSettings(!showSettings)}
-            className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-cyan-300 hover:bg-white/10 border border-white/10 transition-all"
+            className="p-1.5 rounded-lg bg-white/5 text-slate-400 hover:text-cyan-300 hover:bg-white/10 border border-white/10 transition-all flex items-center gap-1 px-2.5 text-xs font-rajdhani font-bold"
             title="Configurar Chaves de API de IA"
           >
             <Settings2 className="w-4 h-4" />
+            <span>CONFIGS</span>
           </button>
 
         </div>
@@ -402,9 +433,25 @@ export const VoiceChat: React.FC = () => {
         </div>
       </div>
 
+      {/* ERROR BANNER IF VOICE FAILS */}
+      {voiceError && (
+        <div className="relative z-30 mx-6 p-3 rounded-2xl bg-amber-950/80 border border-amber-500/50 backdrop-blur-md flex items-center justify-between gap-3 text-xs text-amber-200 animate-in fade-in">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-amber-400 shrink-0" />
+            <span>{voiceError}</span>
+          </div>
+          <button
+            onClick={() => setShowSettings(true)}
+            className="px-2.5 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/40 text-amber-300 font-mono font-bold text-[11px] border border-amber-500/40 transition-all shrink-0"
+          >
+            Ajustar Chave ⚙️
+          </button>
+        </div>
+      )}
+
       {/* MODAL CONFIGURAÇÃO CÉREBRO IA */}
       {showSettings && (
-        <div className="absolute top-20 left-6 z-40 p-6 rounded-3xl bg-[#030a1c]/95 border border-cyan-500/40 shadow-2xl backdrop-blur-xl w-80 sm:w-[400px] animate-in fade-in duration-200">
+        <div className="absolute top-20 left-6 z-40 p-6 rounded-3xl bg-[#030a1c]/95 border border-cyan-500/40 shadow-2xl backdrop-blur-xl w-80 sm:w-[420px] animate-in fade-in duration-200">
           <div className="flex items-center justify-between pb-3 border-b border-white/10 mb-4">
             <h4 className="text-base font-bold font-rajdhani text-white uppercase tracking-wider flex items-center gap-2">
               <Brain className="w-5 h-5 text-cyan-400" />
@@ -423,7 +470,7 @@ export const VoiceChat: React.FC = () => {
             <div>
               <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
                 <span>Groq API Key (Llama / Mistral)</span>
-                <span className="text-emerald-400">Ativo</span>
+                <span className="text-emerald-400 font-bold">● Ativo</span>
               </label>
               <input
                 type="password"
@@ -434,30 +481,63 @@ export const VoiceChat: React.FC = () => {
               />
             </div>
 
-            {/* OpenAI Key */}
-            <div>
-              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
-                <span>OpenAI API Key (GPT-4o)</span>
-                <span className="text-cyan-400">Opcional</span>
-              </label>
-              <input
-                type="password"
-                value={openaiKey}
-                onChange={e => setOpenaiKey(e.target.value)}
-                placeholder="sk-..."
-                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-cyan-500/30 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
-              />
-            </div>
-
             {/* ElevenLabs Key */}
             <div>
-              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1">Voz Neural API Key</label>
+              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
+                <span>ElevenLabs API Key (Voz do JARVIS)</span>
+                <span className="text-purple-400 font-bold">● Neural HD</span>
+              </label>
               <input
                 type="password"
                 value={elevenApiKey}
                 onChange={e => setElevenApiKey(e.target.value)}
                 placeholder="sk_..."
                 className="w-full px-3 py-2 rounded-xl bg-black/60 border border-purple-500/30 text-white font-mono text-xs focus:outline-none focus:border-purple-400"
+              />
+            </div>
+
+            {/* Voice Model Selection */}
+            <div>
+              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1">
+                Modelo da Voz (JARVIS Character)
+              </label>
+              <select
+                value={voiceId}
+                onChange={e => setVoiceId(e.target.value)}
+                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-cyan-500/30 text-cyan-200 font-mono text-xs focus:outline-none focus:border-cyan-400"
+              >
+                <option value="onwK4e9ZLuTAKqWW03F9">Daniel - JARVIS Oficial do Filme (British Male)</option>
+                <option value="JBFqnCBsd6RMkjVDRZzb">George - British Narrator (Maduro e Calmo)</option>
+                <option value="nPczCjzI2devNBz1zQrb">Brian - Deep Resonance (Grave e Encorpado)</option>
+                <option value="pNInz6obpgDQGcFmaJgB">Adam - Autoritário e Firme</option>
+              </select>
+            </div>
+
+            {/* Test Voice in Settings */}
+            <div className="pt-1">
+              <button
+                type="button"
+                onClick={() => handleTestVoice(elevenApiKey, voiceId)}
+                disabled={isTestingVoice}
+                className="w-full py-2 rounded-xl bg-purple-950/60 hover:bg-purple-900/80 border border-purple-500/40 text-purple-200 font-mono text-xs flex items-center justify-center gap-2 transition-all disabled:opacity-50"
+              >
+                {isTestingVoice ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Volume2 className="w-3.5 h-3.5" />}
+                <span>Testar Voz com esta Chave 🔊</span>
+              </button>
+            </div>
+
+            {/* OpenAI Key */}
+            <div>
+              <label className="block text-[10px] font-mono uppercase text-slate-300 mb-1 flex items-center justify-between">
+                <span>OpenAI API Key (Opcional)</span>
+                <span className="text-slate-500">Opcional</span>
+              </label>
+              <input
+                type="password"
+                value={openaiKey}
+                onChange={e => setOpenaiKey(e.target.value)}
+                placeholder="sk-..."
+                className="w-full px-3 py-2 rounded-xl bg-black/60 border border-white/10 text-white font-mono text-xs focus:outline-none focus:border-cyan-400"
               />
             </div>
 

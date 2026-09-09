@@ -18,7 +18,7 @@ export const getPersonalizedWelcome = (userName: string, alias?: string): string
 };
 
 export const speakGreeting = async (text: string, customApiKey?: string): Promise<void> => {
-  const keyToUse = customApiKey || localStorage.getItem('jarves_tts_api_key') || 'sk_0db4bf3a189c2745b186a2464108519137e709c5e045a1f9';
+  const keyToUse = customApiKey || localStorage.getItem('jarves_tts_api_key') || (import.meta as any).env?.VITE_ELEVENLABS_API_KEY || 'sk_775fb5f6b7e47b666ef4048b765f99c7c3385624207d84eb';
 
   try {
     const res = await fetch('https://api.elevenlabs.io/v1/text-to-speech/onwK4e9ZLuTAKqWW03F9', {

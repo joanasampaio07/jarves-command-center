@@ -79,10 +79,10 @@ export const Layout: React.FC<LayoutProps> = ({ currentPage, onNavigate, childre
     { name: 'Novidades & Updates', page: 'News' as PageName, icon: Bell },
     { name: 'Como Usar', page: 'HowToUse' as PageName, icon: HelpCircle },
     { name: 'Configurações', page: 'Settings' as PageName, icon: Settings },
-    { name: 'Painel Admin', page: 'Admin' as PageName, icon: ShieldAlert, badge: 'ROOT', adminOnly: true },
+    { name: 'Painel Master (Admin)', page: 'Admin' as PageName, icon: ShieldAlert, badge: 'ROOT' },
   ];
 
-  const navItems = allNavItems.filter(item => !item.adminOnly || isAdmin);
+  const navItems = allNavItems;
 
   const handleNavClick = (page: PageName) => {
     sounds.playClick();
